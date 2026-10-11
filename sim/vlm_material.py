@@ -13,6 +13,7 @@
 import json
 import os
 import re
+import signal
 import statistics
 import subprocess
 import sys
@@ -46,6 +47,14 @@ def load_dotenv():
                 os.environ[k.strip()] = v.strip().strip('"')
 
 
+class CallTimedOut(Exception):
+    pass
+
+
+def _on_alarm(signum, frame):
+    raise CallTimedOut("call timed out (whole call)")
+
+
 def ask_gemini(image):
     from google import genai  # pip install google-genai
 
@@ -56,9 +65,15 @@ def ask_gemini(image):
     from google.genai import types
 
     # 応答がないと永久に待ってしまう（2026-10-11 の夜、1 枚目で 8 時間止まった）ので、上限時間を付ける
-    client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_S * 1000))  # キーは環境変数から
+    # SDK 自身の自動再試行は切る（429 などで待ち時間を伸ばしながら待ち続け、上限時間が効かなかった）
+    client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_S * 1000,
+                                                         retry_options=types.HttpRetryOptions(attempts=1)))
     last = None
     for attempt in (1, 2):  # 時間切れのときだけ 1 回やり直す
+        # 呼び出し全体（アップロード・処理の完了待ちを含む）を OS のタイマーで打ち切る。
+        # 通信 1 回の上限だけでは、SDK の完了待ち（sleep しながら待つ）が止まらなかった
+        signal.signal(signal.SIGALRM, _on_alarm)
+        signal.alarm(TIMEOUT_S)
         try:
             f = client.files.upload(file=str(image))
             resp = client.interactions.create(
@@ -72,7 +87,9 @@ def ask_gemini(image):
             if "timed out" not in str(e).lower() and "timeout" not in type(e).__name__.lower():
                 raise
             last = e
-            print(f"  {image.name if hasattr(image, 'name') else image}: {TIMEOUT_S}s で応答なし（{attempt} 回目）", file=sys.stderr)
+            print(f"  {getattr(image, 'name', image)}: {TIMEOUT_S}s で応答なし（{attempt} 回目）", file=sys.stderr)
+        finally:
+            signal.alarm(0)  # 成功しても失敗しても、タイマーは必ず止める
     raise last
 
 
