@@ -38,6 +38,12 @@ fi
 
 echo "== 公開前の点検（S10 から）"
 if git rev-parse --git-dir >/dev/null 2>&1; then
+  # commit の作者メールは GitHub で誰でも見られる。氏名の入ったメールにしない
+  email=$(git config user.email)
+  case "$email" in
+    *@users.noreply.github.com) pass "commit の作者メールは匿名用（noreply）" ;;
+    *) fail "commit の作者メールが ${email}" "git config user.email \"<ID>+<login>@users.noreply.github.com\"（手順書 S1）" ;;
+  esac
   # 未 commit のファイルも含める（.gitignore 済みの .venv / third_party / outputs は除く）
   n=$(git ls-files --cached --others --exclude-standard | grep -c .)
   hits=$(git grep --untracked -n -i -E "${PRIVATE_WORDS:-@gmail}" -- . ':!scripts/preflight.sh' 2>/dev/null | head -5)
