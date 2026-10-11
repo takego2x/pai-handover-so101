@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "outputs" / "vlm"
 MATERIALS = ["POM", "ABS", "aluminium", "steel", "NBR"]  # data/friction_literature.csv の材質名にそろえる
 GEMINI_MODEL = "gemini-robotics-er-2-preview"
+TIMEOUT_S = int(os.environ.get("GEMINI_TIMEOUT_S", "120"))  # 1 回の呼び出しの上限時間
 QWEN_MODEL = "mlx-community/Qwen2.5-VL-3B-Instruct-4bit"
 
 PROMPT = f"""This is a top-down image of a blue tray with industrial parts on it.
@@ -52,15 +53,27 @@ def ask_gemini(image):
     if not os.environ.get("GEMINI_API_KEY"):
         sys.exit("GEMINI_API_KEY がありません（.env に書く）")
 
-    client = genai.Client()  # GEMINI_API_KEY を環境変数から読む。キーはコードに書かない
-    f = client.files.upload(file=str(image))
-    resp = client.interactions.create(
-        model=GEMINI_MODEL,
-        input=[{"type": "image", "uri": f.uri, "mime_type": f.mime_type},
-               {"type": "text", "text": PROMPT}],
-        generation_config={"thinking_level": "medium"},  # 公式は遅延と性能の釣り合いに medium を推奨
-    )
-    return resp.output_text
+    from google.genai import types
+
+    # 応答がないと永久に待ってしまう（2026-10-11 の夜、1 枚目で 8 時間止まった）ので、上限時間を付ける
+    client = genai.Client(http_options=types.HttpOptions(timeout=TIMEOUT_S * 1000))  # キーは環境変数から
+    last = None
+    for attempt in (1, 2):  # 時間切れのときだけ 1 回やり直す
+        try:
+            f = client.files.upload(file=str(image))
+            resp = client.interactions.create(
+                model=GEMINI_MODEL,
+                input=[{"type": "image", "uri": f.uri, "mime_type": f.mime_type},
+                       {"type": "text", "text": PROMPT}],
+                generation_config={"thinking_level": "medium"},  # 公式は遅延と性能の釣り合いに medium を推奨
+            )
+            return resp.output_text
+        except Exception as e:  # noqa: PERF203
+            if "timed out" not in str(e).lower() and "timeout" not in type(e).__name__.lower():
+                raise
+            last = e
+            print(f"  {image.name if hasattr(image, 'name') else image}: {TIMEOUT_S}s で応答なし（{attempt} 回目）", file=sys.stderr)
+    raise last
 
 
 def ask_qwen(image):
@@ -126,6 +139,9 @@ def main():
                 hint = {403: "キーに制限が付いていない（AI Studio でキーに制限を付ける）",
                         429: "プロジェクトの利用上限（https://ai.studio/spend）。上限を上げるか、手順書 S7b の"
                              "「Gemini が使えないとき」で保存済みの応答を使う"}.get(code, "")
+                if not hint and "timed out" in str(e).lower():
+                    hint = (f"{TIMEOUT_S} 秒待っても応答がない。時間をおいて再実行するか、"
+                            "手順書 S7b の「Gemini が使えないとき」で保存済みの応答を使う")
                 sys.exit(f"Gemini の呼び出しに失敗: {code} {str(e)[:160]}\n→ {hint}")
             latencies.append(time.perf_counter() - t0)
             raw_path.write_text(text)
