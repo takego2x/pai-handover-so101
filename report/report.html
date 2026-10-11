@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>説明資料 PAI最終課題</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; font-size: 10.5pt; line-height: 1.6; color: #111; }
+  h1 { font-size: 17pt; margin: 0 0 4mm; }
+  h2 { font-size: 12.5pt; border-bottom: 1px solid #111; padding-bottom: 1mm; margin: 7mm 0 3mm; }
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0; font-size: 9.5pt; }
+  th, td { border: 1px solid #555; padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
+  th { background: #eee; }
+  img { max-width: 100%; }
+  .meta { color: #555; font-size: 9pt; }
+  code { font-size: 9pt; }
+</style>
+</head>
+<body>
+<h1>μ は幅でしか流通していない：材質の見積もりで安全とタクトタイムを両立するピッキング</h1>
+<p class="meta">PAI 応用編1 最終課題 ／ アカウント名：（omnicampus アカウント名）／ 動画：（YouTube URL）／ コード：（GitHub URL）</p>
+
+<h2>1. 目的</h2>
+<p>（ここに 3〜4 行）</p>
+
+<h2>2. 背景</h2>
+<p>（図面は流通するが μ は流通しない。文献値の幅の表）</p>
+
+<h2>3. システム構成</h2>
+<p>（カメラ → VLM → μ の表 → 加速度の計画 → ロボット。配線図）</p>
+
+<h2>4. 工夫した点（講義との対応）</h2>
+<table>
+<tr><th>講義</th><th>作品のどこに入れたか</th></tr>
+<tr><td>第2回 RobOps 実践</td><td>Docker（digest 固定）、固定 seed の closed-loop 評価、metrics.json、GitHub Actions</td></tr>
+<tr><td>第3回 コンピュータアーキテクチャ</td><td>VLM の遅延を実測（中央値・p95）。秘密情報をリポジトリに入れない</td></tr>
+<tr><td>第6回 Open Source in Robotics</td><td>Microduck（Apache-2.0 / CC BY-NC-SA 4.0）の取り込みとライセンスの扱い</td></tr>
+</table>
+
+<h2>5. 評価</h2>
+<img src="../outputs/eval/tradeoff.png" style="width:60%">
+<p>（条件：3 材質 × 20 seed、把持力 8N、部品 90g、安全率 0.85。結果の表）</p>
+
+<h2>6. 失敗と考察</h2>
+<p>（substeps、余裕 4.5% で結果が環境数に依存した件、Qwen 40%、くちばしの理論とのずれ など）</p>
+
+<h2>7. 再現手順</h2>
+<p><code>docker compose build &amp;&amp; docker compose run --rm sim python sim/evaluate.py 20</code></p>
+
+<h2>8. 使用した OSS とライセンス</h2>
+<p>（Genesis、Franka モデル、Microduck、Gemini Robotics-ER 2 ほか）</p>
+</body>
+</html>

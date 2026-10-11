@@ -1,0 +1,6 @@
+services:
+  sim:
+    build: .
+    volumes:
+      - .:/work
+    working_dir: /work

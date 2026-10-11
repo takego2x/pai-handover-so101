@@ -1,0 +1,5 @@
+.venv
+outputs
+third_party
+.git
+.env

@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the pinned runtime
+        run: docker compose build
+      - name: Unit tests and one physics regression
+        run: docker compose run --rm sim python -m pytest -q tests
+      - name: Small closed-loop evaluation (3 seeds)
+        run: docker compose run --rm sim python sim/evaluate.py 3 --out outputs/eval_ci
+      - name: Threshold check
+        run: docker compose run --rm sim python scripts/check_metrics.py outputs/eval_ci/metrics.json
+      - name: Keep evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-ci
+          path: outputs/eval_ci/
