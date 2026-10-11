@@ -23,7 +23,7 @@ case "$STEP" in
   S10) FILES="scripts/make_video.py video/storyboard_lv0.json report/report.html scripts/make_pdf.sh scripts/figures.py README.md" ;;
   S11) FILES="scripts/fetch_microduck_assets.sh sim/beak_mu_sweep.py" ;;
   S12) FILES="tests/test_core.py scripts/check_metrics.py .github/workflows/ci.yml" ;;
-  S13) FILES="spikes/line_two_arms.py" ;;
+  S13) FILES="spikes/line_two_arms.py sim/line.py" ;;
   *) echo "知らないステップ: $STEP（S1〜S13, S7a, S7b, S9b）" >&2; exit 1 ;;
 esac
 
