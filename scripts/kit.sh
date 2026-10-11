@@ -20,7 +20,7 @@ case "$STEP" in
   S8)  FILES="sim/transport.py" ;;
   S9)  FILES="sim/evaluate.py sim/sensitivity.py" ;;
   S9b) FILES="dora/dataflow.yml dora/common.py dora/camera.py dora/vlm_node.py dora/planner.py dora/executor.py dora/monitor.py" ;;
-  S10) FILES="scripts/make_video.py video/storyboard_lv0.json report/report.html scripts/make_pdf.sh scripts/figures.py" ;;
+  S10) FILES="scripts/make_video.py video/storyboard_lv0.json report/report.html scripts/make_pdf.sh scripts/figures.py README.md" ;;
   S11) FILES="scripts/fetch_microduck_assets.sh sim/beak_mu_sweep.py" ;;
   S12) FILES="tests/test_core.py scripts/check_metrics.py .github/workflows/ci.yml" ;;
   S13) FILES="spikes/line_two_arms.py" ;;
