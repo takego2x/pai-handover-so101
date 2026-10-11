@@ -16,7 +16,7 @@ case "$STEP" in
   S5)  FILES="Dockerfile compose.yaml .dockerignore" ;;
   S6)  FILES="data/friction_literature.csv data/SOURCES.md sim/mu_table.py" ;;
   S7a) FILES="sim/tray_camera.py" ;;
-  S7b) FILES="sim/vlm_material.py" ;;
+  S7b) FILES="sim/vlm_material.py data/vlm_responses_gemini/tray_0.gemini.txt data/vlm_responses_gemini/tray_1.gemini.txt data/vlm_responses_gemini/tray_2.gemini.txt data/vlm_responses_gemini/tray_3.gemini.txt data/vlm_responses_gemini/tray_4.gemini.txt data/vlm_responses_gemini/tray_5.gemini.txt data/vlm_responses_gemini/tray_6.gemini.txt data/vlm_responses_gemini/tray_7.gemini.txt data/vlm_responses_gemini/tray_8.gemini.txt data/vlm_responses_gemini/tray_9.gemini.txt" ;;
   S8)  FILES="sim/transport.py" ;;
   S9)  FILES="sim/evaluate.py sim/sensitivity.py" ;;
   S9b) FILES="dora/dataflow.yml dora/common.py dora/camera.py dora/vlm_node.py dora/planner.py dora/executor.py dora/monitor.py" ;;

@@ -21,6 +21,9 @@ for event in node:
         if closed >= {"parts", "result"}:
             break
 
+if not vlm or not results:  # 上流が 1 件も処理できなかった（VLM の失敗など）。落ちずに理由を出す
+    print(f"[monitor] no data: trays={len(vlm)} results={len(results)}。vlm ノードのログを確認する", flush=True)
+    raise SystemExit(1)
 t0 = min(v["t_cam"] for v in vlm.values())
 done = [r for r in results if "t_lift_move" in r]
 summary = {

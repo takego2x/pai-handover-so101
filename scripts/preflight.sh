@@ -32,6 +32,11 @@ echo "== Gemini（S7b から必要）"
 if [ -f .env ] && grep -q '^GEMINI_API_KEY=..*' .env; then
   pass ".env に GEMINI_API_KEY がある（値は表示しない）"
   git check-ignore -q .env && pass ".env は git の対象外" || fail ".env が git の対象になっている" ".gitignore に .env を足す"
+  # シェルの設定（~/.zshrc など）に別のキーがあっても、sim/vlm_material.py は .env を優先する。食い違いは知らせる
+  envkey=$(grep '^GEMINI_API_KEY=' .env | head -1 | cut -d= -f2-)
+  if [ -n "${GEMINI_API_KEY:-}" ] && [ "$GEMINI_API_KEY" != "$envkey" ]; then
+    printf '  注意 シェルにも別の GEMINI_API_KEY がある（値は表示しない）。この課題では .env のキーが使われる\n'
+  fi
 else
   fail ".env に GEMINI_API_KEY がない" "AI Studio でキーに制限を付けて作り、.env に GEMINI_API_KEY=... と書く"
 fi

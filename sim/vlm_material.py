@@ -35,13 +35,14 @@ Return only a JSON array, no prose."""
 
 
 def load_dotenv():
-    """リポジトリ直下の .env から KEY=VALUE を読む（すでに環境変数にあれば上書きしない）。"""
+    """リポジトリ直下の .env から KEY=VALUE を読む。.env を優先する（シェルの設定に別のキーが残っていても、
+    この課題用のキーを使うため。~/.zshrc に別プロジェクトのキーがあり、それが使われて 429 になった）。"""
     env = ROOT / ".env"
     if env.exists():
         for line in env.read_text().splitlines():
             if "=" in line and not line.lstrip().startswith("#"):
                 k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"'))
+                os.environ[k.strip()] = v.strip().strip('"')
 
 
 def ask_gemini(image):
@@ -111,13 +112,21 @@ def main():
     for img in images:
         raw_path = OUT / f"{img.stem}.{'gemini' if backend == 'replay' else backend}.txt"
         if backend == "replay":
-            raw_path = next(iter(sorted(OUT.glob(f"{img.stem}.*.txt"))), None)
+            raw_path = next(iter(sorted(OUT.glob(f"{img.stem}.*.txt"))), None) or \
+                next(iter(sorted((ROOT / "data" / "vlm_responses_gemini").glob(f"{img.stem}.*.txt"))), None)
             if raw_path is None:
-                sys.exit(f"no saved response for {img.name}")
+                sys.exit(f"保存済みの応答がない: {img.name}（S7b を gemini で実行するか、data/vlm_responses_gemini/ を確認）")
             text = raw_path.read_text()
         else:
             t0 = time.perf_counter()  # 経過時間は monotonic な時計で測る（第3回）
-            text = ask(img)
+            try:
+                text = ask(img)
+            except Exception as e:  # API の失敗は、次にすることが分かる形で止める
+                code = getattr(e, "code", None) or getattr(e, "status_code", None)
+                hint = {403: "キーに制限が付いていない（AI Studio でキーに制限を付ける）",
+                        429: "プロジェクトの利用上限（https://ai.studio/spend）。上限を上げるか、手順書 S7b の"
+                             "「Gemini が使えないとき」で保存済みの応答を使う"}.get(code, "")
+                sys.exit(f"Gemini の呼び出しに失敗: {code} {str(e)[:160]}\n→ {hint}")
             latencies.append(time.perf_counter() - t0)
             raw_path.write_text(text)
         truth = json.load(open(img.with_suffix(".json")))

@@ -1,0 +1,9 @@
+```json
+[
+  {"point": [326, 412], "label": "grey cylinder", "candidates": ["aluminium", "steel", "POM"]},
+  {"point": [357, 587], "label": "black rectangular block", "candidates": ["POM", "ABS", "NBR"]},
+  {"point": [645, 301], "label": "light grey cylinder", "candidates": ["aluminium", "steel", "POM"]},
+  {"point": [640, 492], "label": "dark grey square block", "candidates": ["POM", "ABS", "NBR"]},
+  {"point": [631, 698], "label": "white rectangular block", "candidates": ["POM", "ABS"]}
+]
+```

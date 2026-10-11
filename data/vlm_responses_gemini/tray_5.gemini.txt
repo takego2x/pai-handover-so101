@@ -1,0 +1,29 @@
+```json
+[
+  {
+    "point": [338, 383],
+    "label": "light grey metal cylinder",
+    "candidates": ["aluminium", "steel"]
+  },
+  {
+    "point": [322, 621],
+    "label": "white rectangular block",
+    "candidates": ["POM", "ABS"]
+  },
+  {
+    "point": [662, 286],
+    "label": "dark grey square block",
+    "candidates": ["POM", "ABS", "NBR"]
+  },
+  {
+    "point": [656, 495],
+    "label": "dark grey metal cylinder",
+    "candidates": ["aluminium", "steel"]
+  },
+  {
+    "point": [625, 698],
+    "label": "black rectangular block",
+    "candidates": ["POM", "ABS", "NBR"]
+  }
+]
+```

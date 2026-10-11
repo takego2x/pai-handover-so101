@@ -24,8 +24,13 @@ for event in node:
         with tempfile.NamedTemporaryFile(suffix=".png") as f:
             iio.imwrite(f.name, img)
             text = ask_gemini(f.name)
-    else:  # replay：S7b で保存した Gemini の生の応答を読む（キー不要）
-        text = (ROOT / "outputs" / "vlm" / f"tray_{md['tray']}.gemini.txt").read_text()
+    else:  # replay：S7b で保存した Gemini の生の応答を読む（キー不要）。なければ data/ の保存版
+        cand = [ROOT / "outputs" / "vlm" / f"tray_{md['tray']}.gemini.txt",
+                ROOT / "data" / "vlm_responses_gemini" / f"tray_{md['tray']}.gemini.txt"]
+        found = next((c for c in cand if c.exists()), None)
+        if found is None:
+            raise SystemExit(f"[vlm] 保存済みの応答がない: tray_{md['tray']}（S7b を先に）")
+        text = found.read_text()
     parts = parse(text)
     t1 = time.monotonic()
     node.send_output("parts", pa.array([json.dumps(p) for p in parts]),
