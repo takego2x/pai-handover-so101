@@ -4,3 +4,11 @@ services:
     volumes:
       - .:/work
     working_dir: /work
+  ros2:                      # L8b だけで使う。既定の build では作らない（--profile ros2 を付けたときだけ）
+    profiles: [ros2]
+    build:
+      context: .
+      dockerfile: Dockerfile.ros2
+    volumes:
+      - .:/work
+    working_dir: /work

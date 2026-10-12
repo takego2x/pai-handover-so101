@@ -53,7 +53,8 @@ def sample_parts(n, seed0=1000, material=None, stream=0):
 
 
 def make_scene(substeps=10):
-    gs.init(backend=gs.cpu, logging_level="warning")
+    if not getattr(gs, "_initialized", False):  # 1 つのプロセスで場面を 2 つ作るとき（L8）、起動は 1 回だけ
+        gs.init(backend=gs.cpu, logging_level="warning")
     return gs.Scene(
         sim_options=gs.options.SimOptions(dt=DT, substeps=substeps),
         # 楕円錐の摩擦（既定の多角錐だと効く μ が下がり、じわじわ滑る）。batch_links_info は環境ごとに重さを変えるため
