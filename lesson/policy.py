@@ -6,16 +6,19 @@
       出力 = 握る力の倍率 kF（§1.3 の式の力 × kF、上限 60 N）、加速度 a、指の向き yaw（根元から見た方向からのずれ）
   式の方策・半径向き : kF = 1、a = 9、yaw = 0（L6 で部品が振り子のように回って落ちた持ち方）
   式の方策・接線向き : kF = 1、a = 9、yaw = 90°（L6 で人が見つけた対策）
-  学習した方策       : [log kF, a, yaw] = W @ [1, log μ, log m]（係数 9 個）。CEM で学ぶ
+  学習した方策       : [log kF, a] = W[:2] @ [1, log μ, log m]、yaw = W[2][0]（部品によらない 1 つの値、180° ごとに
+                       回り込ませる）。CEM で 40 世代学ぶ
 採点：運べたら 1 − 0.3·kF − 0.1·(時間 / 2 秒)、落としたら −3（--mistake few_parts のときは −1）。
 
 使い方（作業場所の直下で）:
-  python lesson/policy.py train                     # 学習（約 13 分）。outputs/lesson/policy_W.json に書く
+  python lesson/policy.py train                     # 学習（約 28 分）。outputs/lesson/policy_W.json に書く
   python lesson/policy.py eval --w data/policy_W.json --test-seed 9000
                                                     # 学習に使わない 30 部品で、3 つの方策を比べる（まっさらな場面）
 わざと失敗:
   train --mistake few_parts   : 1 世代で試す部品を 16 → 8 個にし、落としたときの減点を軽く（−1）する
   train --mistake same_scene  : 学習した場面のまま、続けて評価する（まっさらな場面にしない）
+  train --mistake clip_edge   : 指の向きも部品ごとに決め、±90° で切る（作者が最初に作った形。答えの接線が範囲の端にあり、
+                                でたらめな候補でも端に張り付けば接線になる）。20 世代
 """
 import argparse
 import json
@@ -109,13 +112,23 @@ def features(mu_hat, m):
 
 
 YAW_RANGE = math.pi / 2  # 指の向きの出力を切る範囲（±90°）。--yaw-range で変える
+# 指の向きの扱い（既定）：部品によらない 1 つの値（W[2][0]）で、切らずに 180° ごとに回り込ませる
+# （指は左右対称なので +90° と −90° は同じ持ち方。回り込ませれば、範囲の端が有利な点にならない）
+YAW_ONE = True
+YAW_WRAP = True
 
 
 def learned(W, mu_hat, m, yaw_range=None):
     """学習した方策：データ → 握る力の倍率、加速度、指の向き（±yaw_range で切る）。"""
     yr = YAW_RANGE if yaw_range is None else yaw_range
     out = features(mu_hat, m) @ np.asarray(W).T
-    return (np.clip(np.exp(out[:, 0]), 0.5, 3.0), np.clip(out[:, 1], 0.5, c.A_CAP), np.clip(out[:, 2], -yr, yr))
+    if YAW_ONE:  # 指の向きは部品によらない 1 つの値
+        out[:, 2] = np.asarray(W)[2][0]
+    if YAW_WRAP:  # 端に張り付かない：+90° を超えたら −90° 側へ（範囲の端が有利な点にならない）
+        yaw = (out[:, 2] + math.pi / 2) % math.pi - math.pi / 2
+    else:  # 切る：範囲を超えた値は端に張り付く（答えの ±90° が端にあると、でたらめな候補でも答えになる）
+        yaw = np.clip(out[:, 2], -yr, yr)
+    return np.clip(np.exp(out[:, 0]), 0.5, 3.0), np.clip(out[:, 1], 0.5, c.A_CAP), yaw
 
 
 def formula(n, tangent):
@@ -187,7 +200,7 @@ def train(args):
         print(f"{g:3d} {sco[elite[-1]]:10.3f} {sco.mean():10.3f} {kF[b].mean():5.2f} {a[b].mean():5.2f} "
               f"{np.degrees(yaw[b]).mean():5.0f}° {time.time() - t0:5.0f}s", flush=True)
     json.dump({"W": mean.tolist(), "gens": args.gens, "parts_per_gen": P, "fail_penalty": fail,
-               "yaw_range_deg": math.degrees(YAW_RANGE)}, open(args.out, "w"), indent=1)
+               "yaw_range_deg": math.degrees(YAW_RANGE), "yaw_wrap": YAW_WRAP, "yaw_one": YAW_ONE}, open(args.out, "w"), indent=1)
     print("wrote", args.out)
     if args.mistake == "same_scene":
         print("---- evaluate in the SAME scene (mistake)")
@@ -197,24 +210,31 @@ def train(args):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["train", "eval"])
-    ap.add_argument("--gens", type=int, default=20)
+    ap.add_argument("--gens", type=int, help="世代の数（既定 40。--mistake clip_edge は 20）")
     ap.add_argument("--w", default=str(c.ROOT / "data" / "policy_W.json"), help="eval で使う学習済みの方策")
     ap.add_argument("--test-seed", type=int, default=9000)
-    ap.add_argument("--mistake", choices=["few_parts", "same_scene"])
+    ap.add_argument("--mistake", choices=["few_parts", "same_scene", "clip_edge"])
     ap.add_argument("--out", default=str(c.ROOT / "outputs" / "lesson" / "policy_W.json"))
     ap.add_argument("--json", help="eval の結果を書く")
     ap.add_argument("--yaw-range", type=float, default=90.0,
                     help="指の向きの出力を ±何度で切るか。90 だと、答え（接線 ±90°）が範囲の端にある")
+    ap.add_argument("--yaw-clip", action="store_true", help="指の向きを部品ごとに決め、±yaw-range で切る（clip_edge と同じ形）")
     args = ap.parse_args()
     c.quiet()
     YAW_RANGE = math.radians(args.yaw_range)
+    if args.mistake == "clip_edge" or args.yaw_clip:  # 作者が最初に作った形
+        YAW_WRAP, YAW_ONE = False, False
+    if args.gens is None:
+        args.gens = 20 if args.mistake == "clip_edge" else 40
     c.ROOT.joinpath("outputs", "lesson").mkdir(parents=True, exist_ok=True)
     if args.cmd == "train":
         train(args)
     else:
         sc = ArcScene(90)  # まっさらな場面（学習の履歴を持ち込まない）
         wj = json.load(open(args.w))
-        YAW_RANGE = math.radians(wj.get("yaw_range_deg", 90.0))  # 学習したときと同じ範囲で切る
+        YAW_RANGE = math.radians(wj.get("yaw_range_deg", 90.0))  # 学習したときと同じ扱いにする
+        YAW_WRAP = wj.get("yaw_wrap", False)  # 係数のファイルに書いた扱い（無ければ最初の形）
+        YAW_ONE = wj.get("yaw_one", False)
         res = evaluate(sc, wj["W"], 30, args.test_seed)
         if args.json:
             json.dump(res, open(args.json, "w"), indent=1)

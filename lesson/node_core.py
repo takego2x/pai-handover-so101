@@ -122,7 +122,9 @@ class Carrier:
         import policy as pol  # L7 の部品
         self.pol = pol
         self.policy = policy
-        self.W = json.load(open(w_path or (c.ROOT / "data" / "policy_W.json")))["W"]
+        wj = json.load(open(w_path or (c.ROOT / "data" / "policy_W.json")))
+        self.W = wj["W"]
+        pol.YAW_ONE, pol.YAW_WRAP = wj.get("yaw_one", False), wj.get("yaw_wrap", False)  # 学習したときと同じ扱い
         self.sc = pol.ArcScene(1)
 
     def carry(self, msg):
