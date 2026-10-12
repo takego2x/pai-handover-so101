@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ハンズオンの部品取り出し：ステップに必要なファイルを、この答え合わせ用リポジトリから作業場所へコピーする。
-# 使い方（作業場所 pai-final の直下で）: bash ~/Documents/AgentProject/pai-final-mu/scripts/kit.sh S8
+# 使い方（自分の作業場所の直下で）: bash ~/Documents/AgentProject/pai-final-mu/scripts/kit.sh S8
 #   すでにあるファイルは上書きしない（自分で書き換えた分を守る）。上書きしたいときは --force。
 #   --diff を付けると、コピーせずに作業場所との差分だけを見せる（答え合わせ）。
 set -euo pipefail
@@ -35,7 +35,7 @@ case "$STEP" in
   *) echo "知らないステップ: $STEP（S1〜S13, S7a, S7b, S9b, L0〜L7）" >&2; exit 1 ;;
 esac
 
-[ "$(pwd)" = "$REF" ] && { echo "答え合わせ用リポジトリの中では実行しない（作業場所 pai-final で実行する）" >&2; exit 1; }
+[ "$(pwd)" = "$REF" ] && { echo "答え合わせ用リポジトリの中では実行しない（自分の作業場所に cd してから実行する）" >&2; exit 1; }
 
 for f in $FILES; do
   if [ "$MODE" = "--diff" ]; then

@@ -52,12 +52,21 @@ for k in range(50):  # 0.5 秒かけて 5 N → 60 N
 if args.mistake == "moving":
     # 2 cm を加速度 9 m/s^2 で持ち上げながら、加速している間に測る
     pos, T = c.trapezoid(0.02, c.A_CAP)
-    readings = []
+    readings, accs = [], []
+    z_prev = part.get_pos()[:, 2].cpu().numpy()
+    v_prev = np.zeros(N)
     for k in range(int(np.ceil(T / c.DT))):
         go(z_grip + pos((k + 1) * c.DT), 1, F_WEIGH)
-        if (k + 1) * c.DT < T / 2:
+        z = part.get_pos()[:, 2].cpu().numpy()
+        v = (z - z_prev) / c.DT
+        if (k + 1) * c.DT < T / 2:  # 加速している間だけ、力と「部品が実際に出した加速度」を記録する
             readings.append(contact_fz())
+            accs.append((v - v_prev) / c.DT)
+        z_prev, v_prev = z, v
     fz = np.mean(readings, axis=0)
+    accs = np.array(accs)  # 計画は 9 m/s^2 でも、ロボットは指令に遅れてついてくるので、部品の加速度はずっと小さい
+    print(f"planned a = {c.A_CAP:.1f} m/s^2, actual a of the part while measuring: "
+          f"mean {accs.mean():.2f}, max {accs.max():.2f} m/s^2")
 else:
     for k in range(50):  # 0.5 秒かけて滑らかに 2 cm 持ち上げる
         s = (k + 1) / 50

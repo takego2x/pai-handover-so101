@@ -105,9 +105,9 @@ a_meas = np.percentile(acc, 95, axis=0)
 margin = 2 * true_mu * F / (m_true * (c.G + a_meas)) - 1
 t = t_lift + t_move
 print(f"mode={args.mode}  mu_scale={args.mu_scale}  mass_scale={args.mass_scale}")
-print(f"{'#':>2s} {'material':9s} {'mu true':>7s} {'mu plan':>7s} {'F [N]':>6s} {'a plan':>6s} {'time':>6s} {'margin':>7s} result")
+print(f"{'#':>2s} {'material':9s} {'mu true':>7s} {'mu plan':>7s} {'F [N]':>6s} {'a plan':>6s} {'a real':>6s} {'time':>6s} {'margin':>7s} result")
 for i in range(N):
-    print(f"{i:2d} {mats[i]:9s} {true_mu[i]:7.3f} {mu_plan[i]:7.3f} {F[i]:6.2f} {a[i]:6.2f} {t[i]:5.2f}s "
+    print(f"{i:2d} {mats[i]:9s} {true_mu[i]:7.3f} {mu_plan[i]:7.3f} {F[i]:6.2f} {a[i]:6.2f} {a_meas[i]:6.2f} {t[i]:5.2f}s "
           f"{margin[i] * 100:+6.0f}% {'held' if success[i] else 'DROPPED'}")
 print(f"success {int(success.sum())}/{N}   force median {np.median(F):.1f} N (max {F.max():.1f})   "
       f"lift+move mean {t.mean():.2f} s   worst margin {margin.min() * 100:+.0f}%")

@@ -10,6 +10,7 @@
 使い方: python lesson/l3_trials.py [n] [--trials 7] [--mistake slam | no_home]
   --mistake slam    : 重さを測るとき、指をそっと閉じず、いきなり 60 N で閉じる
   --mistake no_home : 全環境を同じ構えの姿勢から始めない（Genesis の初期の姿勢のまま IK を解く）
+  --material steel --mu 0.3,0.5,0.1 : 材質と本当の μ を自分で並べる（n は μ の個数になる）
 """
 import argparse
 import json
@@ -25,11 +26,18 @@ ap.add_argument("--trials", type=int, default=7)
 ap.add_argument("--seed0", type=int, default=1000)
 ap.add_argument("--mistake", choices=["slam", "no_home"])
 ap.add_argument("--out", default=str(c.ROOT / "outputs" / "lesson" / "parts.json"))
+ap.add_argument("--material", help="全部品をこの材質にする（--mu と一緒に使う）")
+ap.add_argument("--mu", help="本当の μ を環境の順にカンマ区切りで指定する（例: 0.3,0.5,0.1）。並べ替えの切り分け用")
 args = ap.parse_args()
 c.quiet()
 
-N = args.n
-mats, true_mu = c.sample_parts(N, args.seed0)
+if args.mu:  # 条件を自分で並べる（並べ替えて、失敗が条件についていくか、環境の番号についていくかを見る）
+    true_mu = np.array([float(x) for x in args.mu.split(",")])
+    N = len(true_mu)
+    mats = [args.material or "steel"] * N
+else:
+    N = args.n
+    mats, true_mu = c.sample_parts(N, args.seed0)
 XY = np.array([0.55, 0.0])
 F_WEIGH, F_LO = 60.0, 0.3
 
