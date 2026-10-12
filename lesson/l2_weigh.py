@@ -20,7 +20,7 @@ c.quiet()
 N = args.n
 mats, true_mu = c.sample_parts(N)
 XY = np.array([0.55, 0.0])
-F_WEIGH = 60.0  # 重さを測るときの把持力。どの部品でも落とさないよう、上限で握る
+F_WEIGH = float(__import__("os").environ.get("F_WEIGH", 60.0))  # 重さを測るときの把持力。どの部品でも落とさないよう、上限で握る
 
 scene = c.make_scene()
 scene.add_entity(c.gs.morphs.Plane())
@@ -64,6 +64,7 @@ if args.mistake == "moving":
             accs.append((v - v_prev) / c.DT)
         z_prev, v_prev = z, v
     fz = np.mean(readings, axis=0)
+    go(z_grip + 0.02, 50, F_WEIGH)  # 持ち上がったかを判定する前に、止まって待つ
     accs = np.array(accs)  # 計画は 9 m/s^2 でも、ロボットは指令に遅れてついてくるので、部品の加速度はずっと小さい
     print(f"planned a = {c.A_CAP:.1f} m/s^2, actual a of the part while measuring: "
           f"mean {accs.mean():.2f}, max {accs.max():.2f} m/s^2")
@@ -79,9 +80,12 @@ else:
     fz = np.mean(readings, axis=0)
 
 m_hat = fz / c.G
+# 持ち上がっているか（部品の底が床から 1 cm 以上）。床に残った部品も、床が支える力で「重さ」は正しく読めてしまう
+lifted = part.get_pos()[:, 2].cpu().numpy() > c.SIDE / 2 + 0.01
 print(f"mistake={args.mistake}")
-print(f"{'#':>2s} {'material':9s} {'true [g]':>8s} {'measured [g]':>12s} {'error':>7s}")
+print(f"{'#':>2s} {'material':9s} {'true [g]':>8s} {'measured [g]':>12s} {'error':>7s} {'lifted':>6s}")
 for i in range(N):
-    print(f"{i:2d} {mats[i]:9s} {m_true[i] * 1000:8.1f} {m_hat[i] * 1000:12.1f} {(m_hat[i] / m_true[i] - 1) * 100:+6.1f}%")
+    print(f"{i:2d} {mats[i]:9s} {m_true[i] * 1000:8.1f} {m_hat[i] * 1000:12.1f} {(m_hat[i] / m_true[i] - 1) * 100:+6.1f}% "
+          f"{'yes' if lifted[i] else 'NO':>6s}")
 err = np.abs(m_hat / m_true - 1) * 100
-print(f"max |error| = {err.max():.1f}%")
+print(f"max |error| = {err.max():.1f}%   lifted {int(lifted.sum())}/{N}")

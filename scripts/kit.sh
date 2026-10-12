@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ハンズオンの部品取り出し：ステップに必要なファイルを、この答え合わせ用リポジトリから作業場所へコピーする。
-# 使い方（自分の作業場所の直下で）: bash ~/Documents/AgentProject/pai-final-mu/scripts/kit.sh S8
+# 使い方（自分の作業場所の直下で）: bash ~/Documents/AgentProject/pai-final-mu/scripts/kit.sh L1
 #   すでにあるファイルは上書きしない（自分で書き換えた分を守る）。上書きしたいときは --force。
 #   --diff を付けると、コピーせずに作業場所との差分だけを見せる（答え合わせ）。
 set -euo pipefail

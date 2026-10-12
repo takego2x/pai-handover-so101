@@ -13,6 +13,7 @@
   world_yaw        : 第一層の腕の指の向きを、腕の向きではなく世界の向きに固定する
   b_seed_current   : 第二層の IK を「いまの姿勢」から解く（根元を目標に向けた姿勢から解かない）
   b_yaw_world      : 第二層が運ぶ間、指の向きを世界に対して固定する（腕と一緒に回さない。指は半径の向き）
+  b_yaw_world_tangent : b_yaw_world と同じだが、指は接線の向き（b_grip_radial の対策は入れたまま）
   b_grip_radial    : 第二層の指を閉じる向きを、回る向き（接線）ではなく半径の向きにする
 """
 import argparse
@@ -31,7 +32,8 @@ ap.add_argument("--cells", type=int, choices=[1, 3], default=3)
 ap.add_argument("--seed0", type=int, default=1000)
 ap.add_argument("--trials", type=int, default=7)
 ap.add_argument("--nodata", action="store_true")
-ap.add_argument("--mistake", choices=["diagonal_retract", "world_yaw", "b_seed_current", "b_yaw_world", "b_grip_radial"])
+ap.add_argument("--mistake", choices=["diagonal_retract", "world_yaw", "b_seed_current", "b_yaw_world", "b_yaw_world_tangent",
+                                       "b_grip_radial"])
 ap.add_argument("--json")
 args = ap.parse_args()
 c.quiet()
@@ -240,7 +242,7 @@ t_b = []
 b_from = up(polar(0.4, DROP_TH), Z_UP)
 for k in range(K):
     c0 = clock["B"]
-    yf = TH[k] if MIS == "b_yaw_world" else None  # 部品の向き（置き台の方向）に世界で固定するか
+    yf = TH[k] if MIS in ("b_yaw_world", "b_yaw_world_tangent") else None  # 部品の向き（置き台の方向）に世界で固定するか
     glide_b(b_from, up(stands[k], Z_UP), yaw_fixed=yf)
     glide_b(up(stands[k], Z_UP), up(stands[k], z_stand), yaw_fixed=yf)
     cmd_b(up(stands[k], z_stand), np.minimum(F_b[k], 5.0), yf)

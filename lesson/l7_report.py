@@ -74,7 +74,10 @@ lines += ["## 1. 握る力（第一層 3 台 → 第二層 1 台、材質ラン�
 for m in order:
     s = mats == m
     lines.append(f"| {m} | {int(s.sum())} | {np.median(Fd[s]):.1f} N | {c.F_MAX:.0f} N | {int(sd[s].sum())}/{int(s.sum())} / {int(sn[s].sum())}/{int(s.sum())} |")
-lines += ["", f"第一層の 1 回 {d['cycle_layer1_s']} 秒（うち試行 {d['trials_s']} 秒）、第二層の 1 部品 {d['cycle_layer2_s']} 秒 "
+lines += ["", f"全体（{len(Fd)} 部品）：データあり 中央値 {np.median(Fd):.1f} N、最大 {Fd.max():.1f} N ／ データなし 全部品 {c.F_MAX:.0f} N",
+          "", "時間の定義：第一層の 1 回 = 掴む・重さを測る・試行・置き台へ運ぶ・戻る、のすべて。「試行」は 7 回の試し掴みだけ（重さを測る時間を含まない）",
+          ""]
+lines += [f"第一層の 1 回 {d['cycle_layer1_s']} 秒（うち試行 {d['trials_s']} 秒）、第二層の 1 部品 {d['cycle_layer2_s']} 秒 "
           f"→ 比 {d['cycle_layer1_s'] / d['cycle_layer2_s']:.2f} → 第一層 {int(np.ceil(d['cycle_layer1_s'] / d['cycle_layer2_s']))} 台", ""]
 
 # 図 2 許容範囲

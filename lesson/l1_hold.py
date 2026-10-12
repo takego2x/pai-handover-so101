@@ -6,7 +6,7 @@
   --mistake substeps1 : 1 ステップの中の細かい計算（substeps）を 10 → 1 にする
   --mistake slam      : 指をそっと閉じず、いきなり目標の力で閉じる
   --mistake slam_substeps1 : いきなり閉じる ＋ substeps=1
-  --mistake jump      : 持ち上げの目標を一気に 30 cm 先に置く（滑らかに動かさない）
+  --mistake jump      : 持ち上げの目標を一度に高さ 30 cm（いまの位置から 16.5 cm 上）に置く（滑らかに動かさない）
 """
 import argparse
 
@@ -53,7 +53,7 @@ if args.mistake in ("slam", "slam_substeps1"):  # いきなり目標の力で閉
 else:
     go(z_grip, 50, np.minimum(force, 5.0))  # そっと閉じる（5 N まで）
     go(z_grip, 50, force)                   # それから目標の力
-# ゆっくり持ち上げる。目標を一気に 30 cm 先に置くと、ロボットは急加速して「重さ＋加速の分」が要る
+# ゆっくり持ち上げる。目標を一度に 16.5 cm 上に置くと、ロボットは急加速して「重さ＋加速の分」が要る
 # （わざと失敗 jump で確かめる）。ここでは 2 秒かけて滑らかに動かし、静止して持つ条件だけを見る
 if args.mistake == "jump":
     go(0.30, 200, force)
