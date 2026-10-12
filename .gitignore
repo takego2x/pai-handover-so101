@@ -5,3 +5,6 @@ outputs/
 *.xml.generated
 .env
 dora/out/
+
+# dora の実行ログ（ノードごとのログ。毎回作り直す）
+lesson/nodes_dora/out/

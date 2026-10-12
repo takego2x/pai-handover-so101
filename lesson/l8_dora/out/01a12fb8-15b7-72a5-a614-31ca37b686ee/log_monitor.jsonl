@@ -1,4 +1,0 @@
-{"ts":"2026-10-12T10:45:57.420Z","level":"stdout","node":"monitor","stream":"stderr","msg":"/usr/local/lib/python3.12/site-packages/torch/jit/_script.py:1491: FutureWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.","target":null,"fields":null}
-{"ts":"2026-10-12T10:45:57.420Z","level":"stdout","node":"monitor","stream":"stderr","msg":"  warnings.warn(","target":null,"fields":null}
-{"ts":"2026-10-12T10:47:13.588Z","level":"stdout","node":"monitor","stream":"stdout","msg":"[monitor] delivered 1/1   grip force median 5.1 N (max 5.1)   layer2 time per part 6.3 s (simulated)","target":null,"fields":null}
-{"ts":"2026-10-12T10:47:13.588Z","level":"stdout","node":"monitor","stream":"stdout","msg":"[monitor] MISSING: received 1 results, expected 15","target":null,"fields":null}
