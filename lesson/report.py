@@ -132,7 +132,7 @@ lines += ["## 3. 試行の回数（30 部品）", "", "| 試行の回数 | μ �
 for n, a, b, t in zip(TRIALS, err_med, err_max, tpart):
     lines.append(f"| {n} | {a:.1f}% | {b:.1f}% | {t:.1f} 秒 |")
 # 表 4 見て絞る
-lines += ["## 4. 見て絞る（L4、30 部品）", "", "| 事前の情報 | 試行の回数（平均） | μ の誤差（中央値） |", "|---|---|---|"]
+lines += ["", "## 4. 見て絞る（L4、30 部品）", "", "| 事前の情報 | 試行の回数（平均） | μ の誤差（中央値） |", "|---|---|---|"]
 for p in PRIORS:
     r = json.load(open(OUT / f"parts30_prior_{p}.json"))
     e = [abs(dd["mu"] / tt["mu"] - 1) * 100 for dd, tt in zip(r["data"], r["truth"]) if dd["ok"]]
