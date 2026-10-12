@@ -24,7 +24,15 @@ case "$STEP" in
   S11) FILES="scripts/fetch_microduck_assets.sh sim/beak_mu_sweep.py" ;;
   S12) FILES="tests/test_core.py scripts/check_metrics.py .github/workflows/ci.yml" ;;
   S13) FILES="spikes/line_two_arms.py sim/line.py" ;;
-  *) echo "知らないステップ: $STEP（S1〜S13, S7a, S7b, S9b）" >&2; exit 1 ;;
+  # 教材（2026-10-12 の組み替え後。Obsidian の PAI応用編1_最終課題_教材.md）
+  L0)  FILES=".gitignore LICENSE requirements.txt Dockerfile compose.yaml .dockerignore data/friction_literature.csv data/SOURCES.md sim/mu_table.py lesson/common.py" ;;
+  L1)  FILES="lesson/l1_hold.py" ;;
+  L2)  FILES="lesson/l2_weigh.py" ;;
+  L3)  FILES="lesson/l3_trials.py" ;;
+  L4)  FILES="lesson/l4_carry.py" ;;
+  L5|L6) FILES="lesson/l5_line.py" ;;
+  L7)  FILES="lesson/l7_report.py" ;;
+  *) echo "知らないステップ: $STEP（S1〜S13, S7a, S7b, S9b, L0〜L7）" >&2; exit 1 ;;
 esac
 
 [ "$(pwd)" = "$REF" ] && { echo "答え合わせ用リポジトリの中では実行しない（作業場所 pai-final で実行する）" >&2; exit 1; }

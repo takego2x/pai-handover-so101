@@ -1,0 +1,127 @@
+"""L3: 失敗してよい試し掴みで「持てる最小の力（保持力）」を絞り、重さ・μ・運ぶ力をデータとして書き出す。
+
+1 つの部品について:
+  1. 60 N で持ち上げて、重さを測る（L2）
+  2. 力 F で掴んで 2 cm 持ち上げる試行を n 回。持てたら F を下げ、落ちたら上げる（落とすのは許容）
+     F は「持てた力 hi」と「落ちた力 lo」の掛け算の真ん中 sqrt(lo * hi)（対数で半分ずつ絞る）
+  3. 保持力 F_hold = hi。保持の境目 2 μ F = m g から  μ = m g / (2 F_hold)
+  4. 運ぶ力 = 重さと μ から、加速度 9 m/s^2 で持ち上げても余裕 15% で落とさない力（common.carry_force）
+書き出すファイル outputs/lesson/parts.json の "data" が、次の工程（L4）に渡すデータ。"truth" は採点用でロボットは見ない。
+使い方: python lesson/l3_trials.py [n] [--trials 7] [--mistake slam | no_home]
+  --mistake slam    : 重さを測るとき、指をそっと閉じず、いきなり 60 N で閉じる
+  --mistake no_home : 全環境を同じ構えの姿勢から始めない（Genesis の初期の姿勢のまま IK を解く）
+"""
+import argparse
+import json
+import time
+
+import numpy as np
+
+import common as c
+
+ap = argparse.ArgumentParser()
+ap.add_argument("n", nargs="?", type=int, default=15)
+ap.add_argument("--trials", type=int, default=7)
+ap.add_argument("--seed0", type=int, default=1000)
+ap.add_argument("--mistake", choices=["slam", "no_home"])
+ap.add_argument("--out", default=str(c.ROOT / "outputs" / "lesson" / "parts.json"))
+args = ap.parse_args()
+c.quiet()
+
+N = args.n
+mats, true_mu = c.sample_parts(N, args.seed0)
+XY = np.array([0.55, 0.0])
+F_WEIGH, F_LO = 60.0, 0.3
+
+scene = c.make_scene()
+scene.add_entity(c.gs.morphs.Plane())
+part = c.add_part(scene, XY)
+arm = c.add_franka(scene)
+scene.build(n_envs=N)
+m_true = c.set_parts(part, mats, true_mu)
+c.setup_franka(arm, N, home=args.mistake != "no_home")
+z_grip = c.SIDE / 2 + 0.115
+steps = 0
+
+
+def go(z, n, f=None):
+    global steps
+    c.command(arm, [*XY, z], N, force=f)
+    for _ in range(n):
+        scene.step()
+    steps += n
+
+
+def close_gently(f):  # 5 N でそっと閉じてから、0.2 秒で目標の力 f まで上げる
+    f0 = np.minimum(f, 5.0)
+    go(z_grip, 20, f0)
+    for k in range(20):
+        go(z_grip, 1, f0 + (f - f0) * (k + 1) / 20)
+    go(z_grip, 20, f)
+
+
+def lift(f, dz=0.02, n=30):  # 滑らかに dz 持ち上げて、0.4 秒止める
+    for k in range(n):
+        s = (k + 1) / n
+        go(z_grip + dz * (3 * s**2 - 2 * s**3), 1, f)
+    go(z_grip + dz, 40, f)
+
+
+def z_part():
+    return part.get_pos()[:, 2].cpu().numpy()
+
+
+t0 = time.time()
+go(0.25, 150)
+go(z_grip, 150)
+steps = 0  # ここから 1 部品あたりの時間を数える
+# 1. 重さを測る
+full = np.full(N, F_WEIGH)
+if args.mistake == "slam":
+    go(z_grip, 60, full)
+else:
+    close_gently(full)
+lift(full)
+readings = []
+for _ in range(20):
+    go(z_grip + 0.02, 1, full)
+    readings.append(part.get_links_net_contact_force().cpu().numpy()[:, 0, 2])
+m_hat = np.mean(readings, axis=0) / c.G
+weighed = z_part() > c.SIDE / 2 + 0.01  # 60 N で持ち上がったか（持ち上がらなければ、重さも測れていない）
+
+# 2. 失敗してよい試行
+lo, hi = np.full(N, F_LO), np.full(N, F_WEIGH)
+drops = np.zeros(N, int)
+for j in range(args.trials):
+    F = np.sqrt(lo * hi)
+    go(z_grip, 30)  # 下ろして指を開く（前の試行で落ちた部品は、もう床の上）
+    close_gently(F)
+    lift(F)
+    held = z_part() > c.SIDE / 2 + 0.01
+    hi, lo = np.where(held, F, hi), np.where(held, lo, F)
+    drops += ~held
+go(z_grip, 30)  # 下ろして放す
+t_part = steps * c.DT
+
+# 3. データにする
+F_hold = hi
+mu_hat = m_hat * c.G / (2 * F_hold)
+F_carry = c.carry_force(m_hat, mu_hat)
+ok = weighed
+print(f"mistake={args.mistake}  trials={args.trials}  time per part {t_part:.1f} s  (wall {time.time() - t0:.0f} s)")
+print(f"{'#':>2s} {'material':9s} {'weight':>14s} {'mu true->est':>16s} {'drops':>5s} {'F_hold':>7s} {'F_carry':>7s}")
+for i in range(N):
+    w = f"{m_hat[i] * 1000:6.1f} g {(m_hat[i] / m_true[i] - 1) * 100:+5.1f}%" if ok[i] else "  not lifted  "
+    mu = f"{true_mu[i]:.3f}->{mu_hat[i]:.3f} {(mu_hat[i] / true_mu[i] - 1) * 100:+5.0f}%" if ok[i] else "-"
+    print(f"{i:2d} {mats[i]:9s} {w:>14s} {mu:>16s} {drops[i]:5d} {F_hold[i]:6.2f}N {F_carry[i]:6.2f}N")
+err = (mu_hat / true_mu - 1)[ok] * 100
+print(f"weighed {int(ok.sum())}/{N}   mu error {err.min():+.0f}% .. {err.max():+.0f}%   drops per part {drops.mean():.1f}")
+
+out = {"trials": args.trials, "time_per_part_s": round(t_part, 2), "seed0": args.seed0,
+       "data": [{"ok": bool(ok[i]), "mass_kg": round(float(m_hat[i]), 4), "mu": round(float(mu_hat[i]), 4),
+                 "F_hold_N": round(float(F_hold[i]), 3), "F_carry_N": round(float(F_carry[i]), 3)} for i in range(N)],
+       "truth": [{"material": mats[i], "mass_kg": round(float(m_true[i]), 4), "mu": round(float(true_mu[i]), 4),
+                  "drops": int(drops[i])} for i in range(N)]}
+c.ROOT.joinpath("outputs", "lesson").mkdir(parents=True, exist_ok=True)
+json.dump(out, open(args.out, "w"), indent=1)
+print("wrote", args.out)
