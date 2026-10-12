@@ -1,7 +1,8 @@
 """L7: 運ぶ方策を学習する（AI 2）。L8 の第二層も、ここの ArcScene と方策を使う。
 
 場面：腕（根元が原点）が、床の部品（4 cm 角）を、根元の周りに弧を描いて運ぶ（-60° → 110°、170°）。
-方策：入力 = 試し掴みのデータ（重さ m、μ）
+方策：入力 = 重さ m と μ。学習と評価（このファイル）では、正解の μ に L3 で測った誤差の幅（小さめに 3〜15%）を
+      まねた乱数を掛けて作った値を入れる（重さは正解）。本当に試し掴みで測った値を入れるのは L8 の第二層
       出力 = 握る力の倍率 kF（§1.3 の式の力 × kF、上限 60 N）、加速度 a、指の向き yaw（根元から見た方向からのずれ）
   式の方策・半径向き : kF = 1、a = 9、yaw = 0（L6 で部品が振り子のように回って落ちた持ち方）
   式の方策・接線向き : kF = 1、a = 9、yaw = 90°（L6 で人が見つけた対策）
@@ -107,11 +108,14 @@ def features(mu_hat, m):
     return np.column_stack([np.ones_like(mu_hat), np.log(mu_hat), np.log(m)])
 
 
-def learned(W, mu_hat, m):
-    """学習した方策：データ → 握る力の倍率、加速度、指の向き。"""
+YAW_RANGE = math.pi / 2  # 指の向きの出力を切る範囲（±90°）。--yaw-range で変える
+
+
+def learned(W, mu_hat, m, yaw_range=None):
+    """学習した方策：データ → 握る力の倍率、加速度、指の向き（±yaw_range で切る）。"""
+    yr = YAW_RANGE if yaw_range is None else yaw_range
     out = features(mu_hat, m) @ np.asarray(W).T
-    return (np.clip(np.exp(out[:, 0]), 0.5, 3.0), np.clip(out[:, 1], 0.5, c.A_CAP),
-            np.clip(out[:, 2], -math.pi / 2, math.pi / 2))
+    return (np.clip(np.exp(out[:, 0]), 0.5, 3.0), np.clip(out[:, 1], 0.5, c.A_CAP), np.clip(out[:, 2], -yr, yr))
 
 
 def formula(n, tangent):
@@ -120,7 +124,8 @@ def formula(n, tangent):
 
 
 def sample(n, seed0, stream):
-    """部品と、試し掴みのデータ（μ は L3 の実測どおり、本当の値より少し小さめ。重さは正確）。"""
+    """部品と、方策に入れる値。μ は正解に 0.85〜0.97 倍の乱数を掛けて作る（L3 で測った誤差の幅をまねた値で、
+    測った値そのものではない）。重さは正解。"""
     mats, mu = c.sample_parts(n, seed0, stream=stream)
     rng = np.random.default_rng(seed0 + 7 * stream)
     mu_hat = mu * rng.uniform(0.85, 0.97, n)
@@ -181,7 +186,8 @@ def train(args):
         b = grp == elite[-1]
         print(f"{g:3d} {sco[elite[-1]]:10.3f} {sco.mean():10.3f} {kF[b].mean():5.2f} {a[b].mean():5.2f} "
               f"{np.degrees(yaw[b]).mean():5.0f}° {time.time() - t0:5.0f}s", flush=True)
-    json.dump({"W": mean.tolist(), "gens": args.gens, "parts_per_gen": P, "fail_penalty": fail}, open(args.out, "w"), indent=1)
+    json.dump({"W": mean.tolist(), "gens": args.gens, "parts_per_gen": P, "fail_penalty": fail,
+               "yaw_range_deg": math.degrees(YAW_RANGE)}, open(args.out, "w"), indent=1)
     print("wrote", args.out)
     if args.mistake == "same_scene":
         print("---- evaluate in the SAME scene (mistake)")
@@ -197,13 +203,18 @@ if __name__ == "__main__":
     ap.add_argument("--mistake", choices=["few_parts", "same_scene"])
     ap.add_argument("--out", default=str(c.ROOT / "outputs" / "lesson" / "policy_W.json"))
     ap.add_argument("--json", help="eval の結果を書く")
+    ap.add_argument("--yaw-range", type=float, default=90.0,
+                    help="指の向きの出力を ±何度で切るか。90 だと、答え（接線 ±90°）が範囲の端にある")
     args = ap.parse_args()
     c.quiet()
+    YAW_RANGE = math.radians(args.yaw_range)
     c.ROOT.joinpath("outputs", "lesson").mkdir(parents=True, exist_ok=True)
     if args.cmd == "train":
         train(args)
     else:
         sc = ArcScene(90)  # まっさらな場面（学習の履歴を持ち込まない）
-        res = evaluate(sc, json.load(open(args.w))["W"], 30, args.test_seed)
+        wj = json.load(open(args.w))
+        YAW_RANGE = math.radians(wj.get("yaw_range_deg", 90.0))  # 学習したときと同じ範囲で切る
+        res = evaluate(sc, wj["W"], 30, args.test_seed)
         if args.json:
             json.dump(res, open(args.json, "w"), indent=1)
