@@ -28,6 +28,8 @@ ap.add_argument("--parts", type=int, default=8)
 ap.add_argument("--test-parts", type=int, default=30)
 ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--fail-penalty", type=float, default=1.0, help="落としたときの得点（負の値の大きさ）")
+ap.add_argument("--eval-w", help="学習せず、この json の W（学習済みの方策）を、まっさらな場面で評価だけする")
+ap.add_argument("--test-seed", type=int, default=9000)
 ap.add_argument("--out", default=str(c.ROOT / "outputs" / "policy_arc.json"))
 args = ap.parse_args()
 c.quiet()
@@ -142,6 +144,8 @@ mean = np.zeros((3, 3))
 mean[1, 0] = c.A_CAP
 std = np.array([[0.3, 0.2, 0.2], [2.0, 1.0, 1.0], [0.8, 0.3, 0.3]])
 P = args.parts
+if args.eval_w:  # 学習の履歴を持ち込まない（同じ場面で学習した後に評価すると、結果が変わった。2026-10-13）
+    args.gens = 0
 for g in range(args.gens):
     mats, mu, mu_hat, m = sample(P, 5000 + 100 * g, stream=g)
     Ws = [mean] + [mean + std * rng.standard_normal((3, 3)) for _ in range(args.pop - 1)]
@@ -165,8 +169,10 @@ for g in range(args.gens):
     print(json.dumps(log[-1]), flush=True)
 
 # 学習に使わなかった部品で、3 つの方策を比べる
+if args.eval_w:
+    mean = np.array(json.load(open(args.eval_w))["W"])
 T = args.test_parts
-mats, mu, mu_hat, m = sample(T, 9000, stream=99)
+mats, mu, mu_hat, m = sample(T, args.test_seed, stream=99)
 idx, grp = np.arange(N) % T, np.arange(N) // T  # 環境 i → 部品 i % T、方策 i // T（0 式・半径、1 式・接線、2 学習）
 kF, a, yaw = np.ones(N), np.full(N, c.A_CAP), np.zeros(N)
 yaw[grp == 1] = math.pi / 2
@@ -177,8 +183,10 @@ for name, sl in [("formula_radial", slice(0, T)), ("formula_tangent", slice(T, 2
     res[name] = {"success": f"{int(ok[sl].sum())}/{T}", "F_median_N": round(float(np.median(F[sl])), 2),
                  "kF_mean": round(float(kF[sl].mean()), 2), "a_mean": round(float(a[sl].mean()), 2),
                  "yaw_deg_mean": round(float(np.degrees(yaw[sl]).mean()), 1), "t_mean_s": round(float(t[sl].mean()), 2),
-                 "score": round(float(score(ok[sl], kF[sl], t[sl]).mean()), 3)}
-    print(name, json.dumps(res[name]), flush=True)
+                 "score": round(float(score(ok[sl], kF[sl], t[sl]).mean()), 3),
+                 "ok_each": [bool(x) for x in ok[sl]]}
+    print(name, json.dumps({k: v for k, v in res[name].items() if k != "ok_each"}),
+          "failed parts:", [i for i, x in enumerate(res[name]["ok_each"]) if not x], flush=True)
 Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 json.dump({"log": log, "test": res, "W": mean.tolist()}, open(args.out, "w"), indent=1)
 print(f"wall {time.time() - t_start:.0f} s")
