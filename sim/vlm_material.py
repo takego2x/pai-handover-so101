@@ -8,7 +8,7 @@
 出力:
   outputs/vlm/<画像名>.<backend>.txt   VLM の生の応答（記録として残す。replay はこれを読む）
   outputs/vlm/score_<backend>.json     正答率・遅延
-  outputs/vlm_candidates.json          材質ごとの候補（全画像の和集合）→ sim/evaluate.py --vlm に渡す
+  outputs/vlm_candidates.json          材質ごとの候補（画像ごと）。教材は data/vlm_candidates_gemini.json に写したものを使う
 """
 import json
 import os

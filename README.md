@@ -1,47 +1,44 @@
-# μ は幅でしか流通していない — 材質の見積もりで安全とタクトを両立するピッキング
-
-![ci](https://github.com/takego2x/pai-final/actions/workflows/ci.yml/badge.svg)
+# 見て・触って測り、学習した方策で運ぶ ― 材質の分からない部品を、小さい力で傷めずに
 
 松尾研 Physical AI 応用編1 最終課題。動画：（YouTube の URL）
 
 ## 概要
-部品の静摩擦係数 μ は、図面と違って「幅」でしか手に入らない（例：POM–鋼で 0.07〜0.16）。
-μ を高く見積もると落とし、低く見積もると遅くなる。
-本作品では、VLM（Gemini Robotics-ER 2）が部品の材質の **候補** を挙げ、文献値の表から **候補の中で最も小さい μ の下限** を引いて、持ち上げの加速度を決める。
-認識が曖昧でも「落とす」ではなく「遅くなる」に倒れる設計にしている。
+材質の分からない部品が次々に来るラインを、シミュレータ（Genesis）の中に作った。
+- **第一層（アーム 3 台）**：部品を **見て**（AI 1：VLM が材質の候補を挙げ、試す範囲を狭める）、**触って**（握る力を変えて何度か持ち上げを試し、落としてもよい）、重さ・摩擦係数 μ・保持に要る力を測る
+- **第二層（アーム 1 台）**：受け取った重さと μ を、**学習した方策**（AI 2：シミュレータの中で CEM により学習）が「握る力・加速度・指の向き」に変え、弧を描いて一発で運ぶ
+- 第一層と第二層は、ノードに分けてメッセージでつなぐ（dora-rs 版と ROS 2 Jazzy 版の両方）
 
-| 戦略 | 成功率 | 持ち上げ＋移動の平均時間 | 最悪の部品での摩擦の余裕 |
-|---|---|---|---|
-| A 一律・代表値 | 91.7% | 0.75 秒 | −26.7% |
-| B 一律・最悪値 | 100% | 2.51 秒 | +17.7% |
-| C-VLM（Gemini の候補） | 100% | 1.92 秒 | +17.7% |
-| C（材質を完全に知っている場合） | 100% | 1.33 秒 | +17.7% |
+| 結果 | 値 |
+|---|---|
+| 握る力（データあり／データなし） | 中央値 3.5N ／ 全部品 60N（60 部品） |
+| 学習した方策（学習に使わない 90 部品） | 90/90 運ぶ（式の方策 90/90）。握る力は式より約 25% 小さい。代わりに時間が 12% 長い |
+| 学習した方策が見つけた持ち方 | 指を接線の向き（85°）に閉じる。人が原因を切り分けて見つけた対策と同じ。範囲の端の助けなし |
+| 見て絞る（VLM）の効果 | 試し掴み 7.0 → 6.5 回（材質が分かっても μ のばらつきは大きい） |
 
-3 材質 × 20 seed、Genesis 1.4.3（楕円錐の摩擦、substeps=10）、Docker で実行。
-
-## 構成（dora-rs 1.0.1）
-
-```mermaid
-flowchart LR
-  timer[/"dora/timer"/] -- tick --> camera
-  camera -- image --> vlm
-  vlm -- parts --> planner
-  planner -- plan --> executor
-  vlm -- parts --> monitor
-  executor -- result --> monitor
-```
-
-## 再現手順
-
+## 再現手順（Docker、Apple シリコンの Mac で確認）
 ```bash
 docker compose build
-docker compose run --rm sim python -m pytest -q tests          # テスト
-docker compose run --rm sim python sim/evaluate.py 20          # 戦略 A/B/C の評価 → outputs/eval/
-docker compose run --rm sim bash -c 'cd dora && dora run dataflow.yml'   # dora の配線（保存済みの VLM 応答で）
+docker compose run --rm sim python lesson/hold.py              # 保持の条件（理論と 24/24）
+docker compose run --rm sim python lesson/trials.py            # 試し掴みで重さ・μ
+docker compose run --rm sim python lesson/policy.py eval       # 学習した方策と式の方策の比較
+docker compose run --rm sim python lesson/report.py           # 図と表（約 7 分）
+docker compose run --rm sim bash -c "cd lesson/nodes_dora && dora run dataflow.yml"           # dora 版
+docker compose --profile ros2 build ros2 && docker compose --profile ros2 run --rm ros2 bash lesson/nodes_ros2/run.sh 5   # ROS 2 版
+docker compose run --rm sim python -m pytest -q tests          # テスト（CI と同じ）
 ```
+L0〜L9 の手順と、作者の失敗の記録・わざと失敗の再現は、教材にまとめてある。
 
-Microduck の試験台を動かすには、先に `bash scripts/fetch_microduck_assets.sh` を実行する。
-Gemini を実際に呼ぶには、`.env` に `GEMINI_API_KEY=...` を書く（`.env` は git の対象外）。
+## 構成
+| 場所 | 中身 |
+|---|---|
+| `lesson/` | 教材の本体（L1〜L9）。`policy.py` は運ぶ方策の学習、`nodes_dora/` と `nodes_ros2/` はノードのつなぎ方 |
+| `data/` | μ の文献値の表と出典、Gemini の材質の候補（保存済み）、学習済みの方策の係数 |
+| `sim/` | 手順書の S1〜S7・S11 の部品（箱を落とす、IK、μ の掃引、トレイの画像、Gemini の呼び出し、くちばし） |
+| `spikes/` `verify/` | 試作と検証の再現 |
+| `legacy/` | 10/11 の旧構成（戦略 A/B/C）の部品。動かない（`legacy/README.md`） |
+
+## 限界
+シミュレータで示せるのは握る力の N 数まで（力と傷の関係は示していない）。μ は押す力で変わらない。学習と評価で方策に入れる μ は、正解に測定の誤差の幅をまねた乱数を掛けた値。VLM の候補は、部品の正解の材質で過去の応答を割り当てている。
 
 ## データと出典
 μ の文献値は `data/friction_literature.csv`、出典は `data/SOURCES.md`。原文で値を確かめたもの（`verified=yes`）だけを使う。

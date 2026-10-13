@@ -17,13 +17,10 @@ case "$STEP" in
   S6)  FILES="data/friction_literature.csv data/SOURCES.md sim/mu_table.py" ;;
   S7a) FILES="sim/tray_camera.py" ;;
   S7b) FILES="sim/vlm_material.py data/vlm_responses_gemini/tray_0.gemini.txt data/vlm_responses_gemini/tray_1.gemini.txt data/vlm_responses_gemini/tray_2.gemini.txt data/vlm_responses_gemini/tray_3.gemini.txt data/vlm_responses_gemini/tray_4.gemini.txt data/vlm_responses_gemini/tray_5.gemini.txt data/vlm_responses_gemini/tray_6.gemini.txt data/vlm_responses_gemini/tray_7.gemini.txt data/vlm_responses_gemini/tray_8.gemini.txt data/vlm_responses_gemini/tray_9.gemini.txt" ;;
-  S8)  FILES="sim/transport.py" ;;
-  S9)  FILES="sim/evaluate.py sim/sensitivity.py" ;;
-  S9b) FILES="dora/dataflow.yml dora/common.py dora/camera.py dora/vlm_node.py dora/planner.py dora/executor.py dora/monitor.py" ;;
-  S10) FILES="scripts/make_video.py video/storyboard_lv0.json report/report.html scripts/make_pdf.sh scripts/figures.py README.md" ;;
+  S8|S9|S9b|S13) echo "$STEP は旧構成（legacy/ に退かした）。教材の L5〜L9 を使う（Obsidian の PAI応用編1_最終課題_教材.md）" >&2; exit 1 ;;
+  S10) FILES="scripts/make_video.py scripts/make_pdf.sh README.md" ;;
   S11) FILES="scripts/fetch_microduck_assets.sh sim/beak_mu_sweep.py" ;;
-  S12) FILES="tests/test_core.py scripts/check_metrics.py .github/workflows/ci.yml" ;;
-  S13) FILES="spikes/line_two_arms.py sim/line.py" ;;
+  S12) FILES="tests/test_lesson.py .github/workflows/ci.yml" ;;
   # 教材（Obsidian の PAI応用編1_最終課題_教材.md）。ファイルは中身の名前（番号を付けない）
   L0)  FILES=".gitignore LICENSE requirements.txt Dockerfile compose.yaml .dockerignore data/friction_literature.csv data/SOURCES.md sim/mu_table.py lesson/common.py" ;;
   L1)  FILES="lesson/hold.py" ;;
