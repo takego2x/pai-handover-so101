@@ -24,9 +24,13 @@ ENV PYOPENGL_PLATFORM=osmesa \
 FROM sim AS desktop
 RUN apt-get update && apt-get install -y --no-install-recommends xvfb x11vnc novnc websockify fluxbox \
     && rm -rf /var/lib/apt/lists/*
+# 止めて起動し直すと、前回の画面の印（/tmp/.X1-lock）が残っていて Xvfb が起動しない。箱は running のまま画面だけ無い
+# 状態になる（2026-10-17）。起動の前に印を消し、画面が本当に立ち上がったかを確かめ、立ち上がらなければ箱ごと止める
 RUN printf '%s\n' '#!/bin/sh' \
+      'rm -f /tmp/.X1-lock /tmp/.X11-unix/X1' \
       'Xvfb :1 -screen 0 1600x900x24 -listen tcp -ac >/tmp/xvfb.log 2>&1 &' \
-      'sleep 1' \
+      'for i in 1 2 3 4 5 6 7 8 9 10; do [ -e /tmp/.X11-unix/X1 ] && break; sleep 1; done' \
+      '[ -e /tmp/.X11-unix/X1 ] || { echo "desktop: 仮想の画面（Xvfb）が起動しない"; cat /tmp/xvfb.log; exit 1; }' \
       'DISPLAY=:1 fluxbox >/tmp/fluxbox.log 2>&1 &' \
       'x11vnc -display :1 -nopw -forever -shared -quiet -rfbport 5900 >/tmp/x11vnc.log 2>&1 &' \
       'echo "desktop: ブラウザで http://localhost:6080/vnc.html を開き「接続」を押す"' \

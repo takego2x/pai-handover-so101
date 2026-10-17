@@ -8,6 +8,8 @@
   --mistake slam_substeps1 : いきなり閉じる ＋ substeps=1
   --mistake jump      : 持ち上げの目標を一度に高さ 30 cm（いまの位置から 16.5 cm 上）に置く（滑らかに動かさない）
   --record out.mp4    : 24 の環境を真横から録画し、表と同じ並び（行 = μ、列 = F）の 1 本にまとめる
+  --viewer [--env 5]  : 1 つの環境（番号 = 行 × 4 + 列。既定 5 = μ 0.10・F 5 N）を Genesis の窓で見て、
+                        24 の環境の部品の高さと、指に対する部品のずれ（滑り）を rerun へ送る
 """
 import argparse
 
@@ -21,6 +23,8 @@ FORCES = [2.0, 5.0, 10.0, 20.0]
 ap = argparse.ArgumentParser()
 ap.add_argument("--mistake", choices=["finger_mu", "substeps1", "jump", "slam", "slam_substeps1"])
 ap.add_argument("--record", help="mp4 の保存先（例: outputs/L1.mp4）")
+ap.add_argument("--viewer", action="store_true", help="Genesis ビューアと rerun で見る")
+ap.add_argument("--env", type=int, default=5, help="窓で見る環境の番号（行 × 4 + 列。0 = μ 0.05・2 N、23 = μ 0.8・20 N）")
 args = ap.parse_args()
 c.quiet()
 
@@ -30,8 +34,14 @@ mats = ["aluminium"] * N
 true_mu = np.array([mu for mu, _ in grid])
 force = np.array([f for _, f in grid])
 XY = np.array([0.55, 0.0])
+view = c.viewer_view(env=args.env, pos=(0.55, -1.0, 0.35), lookat=(0.55, 0.0, 0.2)) if args.viewer else None
+rr = c.rerun_start("L1_hold") if args.viewer else None
+if view:
+    mu_v, f_v = grid[args.env]
+    print(f"viewer: 窓に描くのは環境 {args.env}（mu = {mu_v:.2f}、F = {f_v:.0f} N）")
 
-scene = c.make_scene(substeps=1 if args.mistake in ("substeps1", "slam_substeps1") else 10, record=bool(args.record))
+scene = c.make_scene(substeps=1 if args.mistake in ("substeps1", "slam_substeps1") else 10, record=bool(args.record),
+                     viewer=view)
 scene.add_entity(c.gs.morphs.Plane())
 part = c.add_part(scene, XY)
 arm = c.add_franka(scene, finger_mu=1.0 if args.mistake == "finger_mu" else 0.01)
@@ -45,19 +55,46 @@ if cam:
 z_grip = c.SIDE / 2 + 0.115  # 手先（hand）から指先の中心までが約 0.115 m
 
 
+step_no = 0
+hand = arm.get_link("hand")
+
+
 def go(z, steps, f=None):
+    """手先を高さ z へ向かわせる指令を出し（f が数値なら、その力で指を閉じる）、時計を steps 回進める。"""
+    global step_no
     c.command(arm, [*XY, z], N, force=f)
     for _ in range(steps):
         scene.step()
+        step_no += 1
+        if rr:  # 24 の環境の、部品の高さ [cm] と、指に対する部品のずれ [cm]（つかんだ後に増えたら、滑っている）
+            rr.set_time("sim", duration=step_no * c.DT)
+            pz = part.get_pos()[:, 2].cpu().numpy()
+            gap = hand.get_pos()[:, 2].cpu().numpy() - pz
+            for i, (mu, fo) in enumerate(grid):
+                rr.log(f"part_height_cm/mu={mu:.2f}/F={fo:.0f}N", rr.Scalars(pz[i] * 100))
+                rr.log(f"hand_minus_part_cm/mu={mu:.2f}/F={fo:.0f}N", rr.Scalars(gap[i] * 100))
 
 
+def phase(name):
+    """いまの段階の名前を、ターミナルと rerun の記録（文字の欄）に残す。"""
+    if rr:
+        rr.set_time("sim", duration=step_no * c.DT)
+        rr.log("phase", rr.TextLog(name))
+
+
+phase("部品の上へ")
 go(0.25, 150)              # 部品の上へ
+phase("下ろす")
 go(z_grip, 150)            # 下ろす
 if args.mistake in ("slam", "slam_substeps1"):  # いきなり目標の力で閉じる
+    phase("いきなり閉じる")
     go(z_grip, 100, force)
 else:
+    phase("そっと閉じる")
     go(z_grip, 50, np.minimum(force, 5.0))  # そっと閉じる（5 N まで）
+    phase("目標の力で握る")
     go(z_grip, 50, force)                   # それから目標の力
+phase("持ち上げる")
 # ゆっくり持ち上げる。目標を一度に 16.5 cm 上に置くと、ロボットは急加速して「重さ＋加速の分」が要る
 # （わざと失敗 jump で確かめる）。ここでは 2 秒かけて滑らかに動かし、静止して持つ条件だけを見る
 if args.mistake == "jump":
@@ -82,3 +119,5 @@ for i, mu in enumerate(MUS):
     t = "".join(f"{'OK' if theory[i * len(FORCES) + j] else '--':>7s}" for j in range(len(FORCES)))
     print(f"{mu:5.2f}  {s}   {t}")
 print(f"match {match}/{N}")
+if view:
+    c.hold_viewer(scene)

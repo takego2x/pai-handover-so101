@@ -219,12 +219,17 @@ def stop_recording(cam, path, cols, labels, ok):
 # ---- 画面で見る（--viewer）。desktop の箱に Genesis の窓、rerun の箱に数字。どちらも先に起動しておく ----
 #   docker compose up -d desktop rerun
 #   ブラウザ：http://localhost:6080/vnc.html（Genesis の窓）、http://localhost:9090/?url=rerun%2Bhttp%3A%2F%2Flocalhost%3A9876%2Fproxy（rerun）
-def _reachable(host, port, what, how):
-    """箱が起動しているかを先に確かめる。起動していないのに黙って進むと、何も映らないまま終わる。"""
-    try:
-        socket.create_connection((host, port), timeout=3).close()
-    except OSError:
-        raise SystemExit(f"{what}に届かない（{host}:{port}）。先に `{how}` を実行する")
+def _reachable(host, port, what, how, wait=15):
+    """箱が起動しているかを先に確かめる（起動した直後は、最大 wait 秒待つ）。
+    起動していないのに黙って進むと、何も映らないまま終わる。"""
+    for _ in range(wait):
+        try:
+            socket.create_connection((host, port), timeout=1).close()
+            return
+        except OSError:
+            time.sleep(1)
+    raise SystemExit(f"{what}に届かない（{host}:{port}）。先に `{how}` を実行する。"
+                     f"起動しているのに届かないときは `docker compose logs desktop rerun` を見る")
 
 
 def viewer_view(env=0, pos=(1.6, -1.6, 1.0), lookat=(0.4, 0.0, 0.2)):
