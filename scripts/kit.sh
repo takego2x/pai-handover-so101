@@ -23,6 +23,7 @@ case "$STEP" in
   S12) FILES="tests/test_lesson.py .github/workflows/ci.yml" ;;
   # 教材（Obsidian の PAI応用編1_最終課題_教材.md）。ファイルは中身の名前（番号を付けない）
   L0)  FILES=".gitignore LICENSE requirements.txt Dockerfile compose.yaml .dockerignore data/friction_literature.csv data/SOURCES.md sim/mu_table.py lesson/common.py" ;;
+  L0b) FILES="lesson/first_drop.py lesson/first_arm.py lesson/first_envs.py" ;;
   L1)  FILES="lesson/hold.py" ;;
   L2)  FILES="lesson/weigh.py" ;;
   L3)  FILES="lesson/trials.py" ;;
@@ -32,7 +33,7 @@ case "$STEP" in
   L7)  FILES="lesson/policy.py data/policy_W.json" ;;
   L8)  FILES="Dockerfile.ros2 lesson/node_core.py lesson/nodes_dora/dataflow.yml lesson/nodes_dora/dataflow_exit_early.yml lesson/nodes_dora/layer1.py lesson/nodes_dora/layer2.py lesson/nodes_dora/monitor.py lesson/nodes_ros2/qos.py lesson/nodes_ros2/layer1.py lesson/nodes_ros2/layer2.py lesson/nodes_ros2/monitor.py lesson/nodes_ros2/run.sh" ;;
   L9)  FILES="lesson/report.py" ;;
-  *) echo "知らないステップ: $STEP（S1〜S13, S7a, S7b, S9b, L0〜L9）" >&2; exit 1 ;;
+  *) echo "知らないステップ: $STEP（S1〜S13, S7a, S7b, S9b, L0, L0b, L1〜L9）" >&2; exit 1 ;;
 esac
 
 [ "$(pwd)" = "$REF" ] && { echo "答え合わせ用リポジトリの中では実行しない（自分の作業場所に cd してから実行する）" >&2; exit 1; }
