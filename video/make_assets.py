@@ -163,12 +163,12 @@ def trials():
 
 def carry():
     """場面 7：同じ部品を 3 通りで運ぶ映像を横に並べ、上に名前と結果を書く。"""
-    labels = [("データなし", "60 N で強く握る → 運べた", (60, 60, 60)),
-              ("式の方策・指は半径の向き", "19.8 N → 回って落とした", (200, 40, 40)),
-              ("学習した方策（AI 2）", "13.0 N・指は 85° → 運べた", (30, 130, 50))]
-    head = Image.new("RGB", (W, 150), "white")
+    labels = [("データなし", "60 N で強く握る → 運べた", (220, 220, 220)),
+              ("式の方策・指は半径の向き", "19.8 N → 回って落とした", (255, 110, 110)),
+              ("学習した方策（AI 2）", "13.0 N・指は 85° → 運べた", (120, 230, 140))]
+    head = Image.new("RGB", (W, 150), (16, 22, 34))  # 映像の背景になじむ暗い色（白地だとスライドに見える）
     d = ImageDraw.Draw(head)
-    d.text((20, 10), "同じ部品（POM 90 g、μ 0.059 の滑りやすい部品）を 3 通りで運ぶ", font=f(28, True), fill="black")
+    d.text((20, 10), "同じ部品（POM 90 g、μ 0.059 の滑りやすい部品）を 3 通りで運ぶ", font=f(28, True), fill="white")
     for k, (a, b, col) in enumerate(labels):
         x = k * 427 + 10
         d.text((x, 62), a, font=f(24, True), fill=col)
@@ -177,7 +177,7 @@ def carry():
     ins = sum([["-i", str(V / f"carry_{k}.mp4")] for k in range(3)], [])
     ff(*ins, "-loop", "1", "-i", str(V / "_carry_head.png"), "-filter_complex",
        "[0:v]crop=560:570:360:40,scale=426:-2[a];[1:v]crop=560:570:360:40,scale=426:-2[b];[2:v]crop=560:570:360:40,scale=426:-2[c];"
-       "[a][b][c]hstack=3,pad=1280:720:1:150:white[v];[v][3:v]overlay=0:0:shortest=1",
+       "[a][b][c]hstack=3,pad=1280:720:1:150:0x101622[v];[v][3:v]overlay=0:0:shortest=1",
        "-r", "25", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(V / "scene_carry.mp4"))
 
 

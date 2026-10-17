@@ -42,7 +42,8 @@ def wrap(d, text, f, width):
     """画面の幅に収まるように折り返す（日本語は空白がないので、1 文字ずつ測る）。"""
     lines, cur = [], ""
     for ch in text:
-        if d.textlength(cur + ch, font=f) > width:
+        # 句読点・閉じかっこは行頭に置かない（前の行に追い込む）
+        if d.textlength(cur + ch, font=f) > width and ch not in "、。，．）」』】％":
             lines.append(cur)
             cur = ch
         else:
@@ -82,7 +83,7 @@ def caption_png(path, text, size=30):
 def segment(seg, i, tmp):
     out = tmp / f"seg{i:02d}.mp4"
     enc = ["-r", str(FPS), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an"]
-    scale = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:white"
+    scale = f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black"
     if "card" in seg:
         png = tmp / f"card{i:02d}.png"
         card_png(png, seg["card"], seg.get("sub", ""))
@@ -93,12 +94,23 @@ def segment(seg, i, tmp):
         ["-ss", str(seg.get("start", 0)), "-t", str(seg["sec"] * sp), "-i", seg["clip"]]
     if sp != 1:
         scale = f"setpts=PTS/{sp},{scale}"
+    # ワイプ：映像の右上に、小さな絵（png）か動画（mp4）を重ねる。図だけの画面を途中に挟まず、映像の上で見せる
+    ins, chain, k = [], f"[0:v]{scale},setsar=1[v0]", 1
+    last = "v0"
+    if seg.get("inset"):
+        w = int(seg.get("inset_w", 460))
+        ins += (["-loop", "1", "-t", str(seg["sec"]), "-i", seg["inset"]] if seg["inset"].endswith(".png")
+                else ["-t", str(seg["sec"]), "-i", seg["inset"]])
+        chain += (f";[{k}:v]scale={w}:-2,pad=iw+8:ih+8:4:4:white[ins];"
+                  f"[{last}][ins]overlay=W-w-20:20:eof_action=pass[v{k}]")
+        last, k = f"v{k}", k + 1
     if seg.get("caption"):
         cap = tmp / f"cap{i:02d}.png"
         caption_png(cap, seg["caption"])
-        ff(*src, "-i", str(cap), "-filter_complex", f"[0:v]{scale},setsar=1[v];[v][1:v]overlay=0:0", *enc, str(out))
-    else:
-        ff(*src, "-vf", scale, *enc, str(out))
+        ins += ["-i", str(cap)]
+        chain += f";[{last}][{k}:v]overlay=0:0[v{k}]"
+        last = f"v{k}"
+    ff(*src, *ins, "-filter_complex", chain, "-map", f"[{last}]", "-t", str(seg["sec"]), *enc, str(out))
     return out
 
 
