@@ -165,6 +165,14 @@ def accel_for(m, mu, F):
     return np.clip(SAFETY * 2 * mu * F / m - G, 0.0, A_CAP)
 
 
+def tilt_deg(entity):
+    """物の傾き [度]（上向きの軸が、真上からどれだけ倒れたか）。形は (環境の数,)。
+    高さだけで「持てた」と判定すると、指先に角で引っかかって傾いてぶら下がった部品も「持てた」になる（L1-c）。"""
+    q = entity.get_quat().cpu().numpy()  # (N, 4)：w, x, y, z
+    cos_t = 1 - 2 * (q[:, 1] ** 2 + q[:, 2] ** 2)  # 回したあとの z 軸の、真上の成分
+    return np.degrees(np.arccos(np.clip(cos_t, -1.0, 1.0)))
+
+
 def quiet():
     """Genesis の警告を減らす（エラーではないので、結果の行だけを読みやすくする）。"""
     import warnings

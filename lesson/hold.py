@@ -73,6 +73,9 @@ def go(z, steps, f=None):
             for i, (mu, fo) in enumerate(grid):
                 rr.log(f"part_height_cm/mu={mu:.2f}/F={fo:.0f}N", rr.Scalars(pz[i] * 100))
                 rr.log(f"hand_minus_part_cm/mu={mu:.2f}/F={fo:.0f}N", rr.Scalars(gap[i] * 100))
+            tl = c.tilt_deg(part)  # 部品の傾き [度]。指先に角で引っかかると大きくなる
+            for i, (mu, fo) in enumerate(grid):
+                rr.log(f"part_tilt_deg/mu={mu:.2f}/F={fo:.0f}N", rr.Scalars(tl[i]))
 
 
 def phase(name):
@@ -106,18 +109,24 @@ else:
 go(0.30, 50, force)
 z = part.get_pos()[:, 2].cpu().numpy()
 
-held = z > 0.10
+tilt = c.tilt_deg(part)
+lifted = z > 0.10           # 高さ 10 cm より上にある
+upright = tilt < 10.0       # 傾き 10 度未満（指先に角で引っかかって、傾いてぶら下がっていない）
+held = lifted & upright     # 持てた = 持ち上がっていて、まっすぐ（L1-c：高さだけで判定すると、ぶら下がりも「持てた」になる）
 if cam:
     c.stop_recording(cam, args.record, cols=len(FORCES), labels=[f"mu={mu:.2f} F={f:.0f}N" for mu, f in grid], ok=held)
 theory = 2 * true_mu * force >= m[0] * c.G
 print(f"part: aluminium {m[0] * 1000:.0f} g (m g = {m[0] * c.G:.2f} N)   mistake={args.mistake}")
-print("simulator (OK = held, -- = dropped)        theory 2 mu F >= m g")
+print("simulator (OK = held, TL = lifted but tilted, -- = dropped)   theory 2 mu F >= m g")
 print("mu \\ F  " + "".join(f"{f:>6.0f}N" for f in FORCES) + "   " + "".join(f"{f:>6.0f}N" for f in FORCES))
 match = int((held == theory).sum())
 for i, mu in enumerate(MUS):
-    s = "".join(f"{'OK' if held[i * len(FORCES) + j] else '--':>7s}" for j in range(len(FORCES)))
+    cell = lambda k: "OK" if held[k] else ("TL" if lifted[k] else "--")  # noqa: E731
+    s = "".join(f"{cell(i * len(FORCES) + j):>7s}" for j in range(len(FORCES)))
     t = "".join(f"{'OK' if theory[i * len(FORCES) + j] else '--':>7s}" for j in range(len(FORCES)))
     print(f"{mu:5.2f}  {s}   {t}")
 print(f"match {match}/{N}")
+for k in np.where(lifted & ~upright)[0]:
+    print(f"tilted: mu={grid[k][0]:.2f} F={grid[k][1]:.0f}N  {tilt[k]:.0f} deg（持ち上がったが、傾いてぶら下がっている）")
 if view:
     c.hold_viewer(scene)
