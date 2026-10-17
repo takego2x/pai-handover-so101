@@ -2,7 +2,7 @@
 
 使い方: python lesson/first_drop.py [--height 1.0] [--dt 0.01] [--viewer]
   --viewer : Genesis ビューア（desktop の箱）で動きを見て、高さを rerun（rerun の箱）でグラフにする。
-             先に docker compose up -d desktop rerun。終わったら窓は開いたまま（Ctrl+C で終わる）
+             先に docker compose up -d desktop rerun。窓が開いて 3 秒後に落とし、そのあとも 3 秒ごとに落とし直す（Ctrl+C で終わる）
 動画: outputs/first_drop.mp4（--viewer を付けないとき）
 """
 import argparse
@@ -40,6 +40,9 @@ scene.build()
 # ⑤ 時計を進める：1 回の step で dt 秒。合計 1.5 秒
 if cam:
     cam.start_recording(save_to_filename="outputs/first_drop.mp4", fps=25)
+if view:  # 落下は 0.44 秒で終わる。窓が開いてすぐだと見逃すので、少し待つ
+    print("viewer: Genesis の窓が開いた。3 秒後に落とす")
+    c.time.sleep(3)
 print("  t [s]   z sim [m]   z theory [m]")
 n_steps, every = round(1.5 / args.dt), round(0.1 / args.dt)
 for i in range(n_steps):
@@ -58,5 +61,13 @@ if cam:
     cam.stop_recording()
 t_land = math.sqrt(2 * (args.height - 0.05) / 9.81)
 print(f"theory: lands at t = {t_land:.2f} s" + ("" if view else "   video: outputs/first_drop.mp4"))
-if view:
-    c.hold_viewer(scene)
+if view:  # 見逃しても見られるよう、元の高さに戻して 3 秒ごとに落とし直す（rerun へ送るのは 1 回目だけ）
+    print("viewer: 3 秒ごとに落とし直す。終わるときは Ctrl+C")
+    try:
+        while True:
+            box.set_pos((0.0, 0.0, args.height))
+            box.zero_all_dofs_velocity()
+            for _ in range(round(3.0 / args.dt)):
+                scene.step()
+    except KeyboardInterrupt:
+        pass
