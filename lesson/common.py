@@ -52,7 +52,7 @@ def sample_parts(n, seed0=1000, material=None, stream=0):
     return mats, np.array(mus)
 
 
-def make_scene(substeps=10):
+def make_scene(substeps=10, record=False):
     if not getattr(gs, "_initialized", False):  # 1 つのプロセスで場面を 2 つ作るとき（L8）、起動は 1 回だけ
         gs.init(backend=gs.cpu, logging_level="warning")
     return gs.Scene(
@@ -60,13 +60,15 @@ def make_scene(substeps=10):
         # 楕円錐の摩擦（既定の多角錐だと効く μ が下がり、じわじわ滑る）。batch_links_info は環境ごとに重さを変えるため
         rigid_options=gs.options.RigidOptions(box_box_detection=True, batch_links_info=True,
                                               friction_cone=gs.friction_cone.elliptic, impratio=10.0),
+        vis_options=gs.options.VisOptions(split_envs=True) if record else None,  # 録画は環境ごとに別の動画
         show_viewer=False)
 
 
 def add_part(scene, xy, yaw_deg=0.0):
     """部品（4 cm 角）。重さと μ は build の後に環境ごとに設定する（set_parts）。"""
     return scene.add_entity(gs.morphs.Box(size=(SIDE,) * 3, pos=(*xy, SIDE / 2), euler=(0, 0, yaw_deg)),
-                            material=gs.materials.Rigid(friction=1.0, rho=1000.0))
+                            material=gs.materials.Rigid(friction=1.0, rho=1000.0),
+                            surface=gs.surfaces.Default(color=(0.9, 0.35, 0.15)))  # 色は描画だけ（録画で見つけやすく）
 
 
 def set_parts(part, mats, true_mu):
@@ -154,3 +156,48 @@ def quiet():
     """Genesis の警告を減らす（エラーではないので、結果の行だけを読みやすくする）。"""
     import warnings
     warnings.filterwarnings("ignore")
+
+
+# ---- 録画（映像で確かめる）。環境ごとに近くから撮り、表と同じ並びの 1 本の動画にまとめる ----
+def add_close_camera(scene, lookat=(0.55, 0.0, 0.17), res=(320, 240)):
+    """build の前に呼ぶ。部品と指を真横（-y の側）から撮るカメラ。どの環境も同じ位置から撮る。"""
+    x, y, z = lookat
+    return scene.add_camera(res=res, pos=(x, y - 0.75, z + 0.08), lookat=lookat, fov=45, GUI=False)
+
+
+def start_recording(cam, path, fps=25):
+    """環境ごとに <path の名前>_<番号>.mp4 を書く（Genesis の split_envs）。まとめるのは stop_recording。"""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    cam.start_recording(save_to_filename=str(path), fps=fps)  # 動画の 1 秒 = シミュレーションの 1 秒
+
+
+def stop_recording(cam, path, cols, labels, ok):
+    """環境ごとの動画を、行 i // cols、列 i % cols に並べた 1 本にまとめる。
+    labels[i] を左上に書き、最後の 1 秒は枠を ok[i] で緑（成功）か赤（失敗）にする。"""
+    import imageio.v3 as iio
+    from PIL import Image, ImageDraw
+    cam.stop_recording()
+    path = Path(path)
+    parts = [path.with_name(f"{path.stem}_{i}{path.suffix}") for i in range(len(labels))]
+    missing = [p.name for p in parts if not p.exists() or p.stat().st_size < 1000]
+    if missing:  # 0 バイトや欠けた動画を「録れた」と言わない
+        raise SystemExit(f"録画に失敗: {missing}")
+    clips = [iio.imread(p) for p in parts]  # (frames, h, w, 3)
+    n, (h, w) = min(len(c) for c in clips), clips[0].shape[1:3]
+    rows = -(-len(clips) // cols)
+    frames = []
+    for t in range(n):
+        canvas = Image.new("RGB", (cols * w, rows * h), (20, 20, 20))
+        draw = ImageDraw.Draw(canvas)
+        for i, c in enumerate(clips):
+            x0, y0 = (i % cols) * w, (i // cols) * h
+            canvas.paste(Image.fromarray(c[t]), (x0, y0))
+            draw.text((x0 + 6, y0 + 4), labels[i], fill=(255, 255, 255))
+            last = t >= n - 25
+            color = ((60, 200, 90) if ok[i] else (230, 60, 60)) if last else (90, 90, 90)
+            draw.rectangle([x0, y0, x0 + w - 1, y0 + h - 1], outline=color, width=4 if last else 1)
+        frames.append(np.asarray(canvas))
+    iio.imwrite(path, np.stack(frames), fps=25, codec="libx264")
+    for p in parts:
+        p.unlink()
+    print(f"recorded: {path} ({path.stat().st_size / 1e6:.1f} MB, {n / 25:.1f} s, {len(clips)} 環境)")

@@ -7,6 +7,7 @@
   --mistake slam      : 指をそっと閉じず、いきなり目標の力で閉じる
   --mistake slam_substeps1 : いきなり閉じる ＋ substeps=1
   --mistake jump      : 持ち上げの目標を一度に高さ 30 cm（いまの位置から 16.5 cm 上）に置く（滑らかに動かさない）
+  --record out.mp4    : 24 の環境を真横から録画し、表と同じ並び（行 = μ、列 = F）の 1 本にまとめる
 """
 import argparse
 
@@ -19,6 +20,7 @@ FORCES = [2.0, 5.0, 10.0, 20.0]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--mistake", choices=["finger_mu", "substeps1", "jump", "slam", "slam_substeps1"])
+ap.add_argument("--record", help="mp4 の保存先（例: outputs/L1.mp4）")
 args = ap.parse_args()
 c.quiet()
 
@@ -29,13 +31,16 @@ true_mu = np.array([mu for mu, _ in grid])
 force = np.array([f for _, f in grid])
 XY = np.array([0.55, 0.0])
 
-scene = c.make_scene(substeps=1 if args.mistake in ("substeps1", "slam_substeps1") else 10)
+scene = c.make_scene(substeps=1 if args.mistake in ("substeps1", "slam_substeps1") else 10, record=bool(args.record))
 scene.add_entity(c.gs.morphs.Plane())
 part = c.add_part(scene, XY)
 arm = c.add_franka(scene, finger_mu=1.0 if args.mistake == "finger_mu" else 0.01)
+cam = c.add_close_camera(scene, lookat=(*XY, 0.17)) if args.record else None
 scene.build(n_envs=N)
 m = c.set_parts(part, mats, true_mu)
 c.setup_franka(arm, N)
+if cam:
+    c.start_recording(cam, args.record)
 
 z_grip = c.SIDE / 2 + 0.115  # 手先（hand）から指先の中心までが約 0.115 m
 
@@ -65,6 +70,8 @@ go(0.30, 50, force)
 z = part.get_pos()[:, 2].cpu().numpy()
 
 held = z > 0.10
+if cam:
+    c.stop_recording(cam, args.record, cols=len(FORCES), labels=[f"mu={mu:.2f} F={f:.0f}N" for mu, f in grid], ok=held)
 theory = 2 * true_mu * force >= m[0] * c.G
 print(f"part: aluminium {m[0] * 1000:.0f} g (m g = {m[0] * c.G:.2f} N)   mistake={args.mistake}")
 print("simulator (OK = held, -- = dropped)        theory 2 mu F >= m g")
