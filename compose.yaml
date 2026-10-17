@@ -1,9 +1,28 @@
 services:
-  sim:
-    build: .
+  sim:                       # 全レッスン。docker compose run --rm sim python lesson/xxx.py
+    build:
+      context: .
+      target: sim
     volumes:
       - .:/work
     working_dir: /work
+    environment:
+      DISPLAY: desktop:1                          # --viewer のとき、Genesis の窓を desktop の画面に出す
+      RERUN_URL: rerun+http://rerun:9876/proxy    # --viewer のとき、数字を rerun の画面へ送る
+  desktop:                   # 仮想の画面。docker compose up -d desktop → http://localhost:6080/vnc.html
+    build:
+      context: .
+      target: desktop
+    ports:
+      - "127.0.0.1:6080:6080"  # この Mac の中からだけ開ける（パスワードなしの画面なので、外には出さない）
+  rerun:                     # rerun の画面。docker compose up -d rerun → http://localhost:9090
+    build:
+      context: .
+      target: sim
+    command: rerun --serve-web --bind 0.0.0.0 --port 9876 --web-viewer-port 9090 --server-memory-limit 2GB
+    ports:
+      - "127.0.0.1:9090:9090"  # ブラウザの rerun の画面
+      - "127.0.0.1:9876:9876"  # ブラウザの画面が、記録を受け取る口
   ros2:                      # L8b だけで使う。既定の build では作らない（--profile ros2 を付けたときだけ）
     profiles: [ros2]
     build:
@@ -12,3 +31,6 @@ services:
     volumes:
       - .:/work
     working_dir: /work
+    environment:
+      DISPLAY: desktop:1
+      RERUN_URL: rerun+http://rerun:9876/proxy

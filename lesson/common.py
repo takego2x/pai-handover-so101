@@ -6,14 +6,24 @@
   3. make_scene / add_franka : シミュレータの世界と、ロボットを作る
   4. ik / hand_quat : 手先の位置と向き → 関節の角度
   5. trapezoid : 加速 → 一定速 → 減速 の動き
+  6. 画面で見る（--viewer）：Genesis ビューア（desktop の箱）と rerun（rerun の箱）。いちばん下
 """
 import math
+import os
+import socket
 import sys
+import time
 from pathlib import Path
 
-import numpy as np
-import torch
-import genesis as gs
+# --viewer のときは、Genesis の窓を desktop の箱の画面に出すため、描画の方式を glx に切り替える。
+# genesis を import する前でないと効かないので、ここ（どのレッスンも最初に common を import する）で決める
+VIEWER = "--viewer" in sys.argv
+if VIEWER:
+    os.environ["PYOPENGL_PLATFORM"] = "glx"
+
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+import genesis as gs  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "sim"))
@@ -52,16 +62,19 @@ def sample_parts(n, seed0=1000, material=None, stream=0):
     return mats, np.array(mus)
 
 
-def make_scene(substeps=10, record=False):
+def make_scene(substeps=10, record=False, viewer=None):
+    """viewer は viewer_view(...) の戻り値（Genesis ビューアで見る環境と視点）。None なら窓を出さない。"""
+    if record and viewer:
+        raise SystemExit("--record と --viewer は同時に使えない（録画は環境ごと、ビューアは 1 つの環境を描くため）")
     if not getattr(gs, "_initialized", False):  # 1 つのプロセスで場面を 2 つ作るとき（L8）、起動は 1 回だけ
         gs.init(backend=gs.cpu, logging_level="warning")
+    vis = gs.options.VisOptions(split_envs=True) if record else None  # 録画は環境ごとに別の動画
     return gs.Scene(
         sim_options=gs.options.SimOptions(dt=DT, substeps=substeps),
         # 楕円錐の摩擦（既定の多角錐だと効く μ が下がり、じわじわ滑る）。batch_links_info は環境ごとに重さを変えるため
         rigid_options=gs.options.RigidOptions(box_box_detection=True, batch_links_info=True,
                                               friction_cone=gs.friction_cone.elliptic, impratio=10.0),
-        vis_options=gs.options.VisOptions(split_envs=True) if record else None,  # 録画は環境ごとに別の動画
-        show_viewer=False)
+        **(viewer_kwargs(viewer) if viewer else {"vis_options": vis, "show_viewer": False}))
 
 
 def add_part(scene, xy, yaw_deg=0.0):
@@ -201,3 +214,56 @@ def stop_recording(cam, path, cols, labels, ok):
     for p in parts:
         p.unlink()
     print(f"recorded: {path} ({path.stat().st_size / 1e6:.1f} MB, {n / 25:.1f} s, {len(clips)} 環境)")
+
+
+# ---- 画面で見る（--viewer）。desktop の箱に Genesis の窓、rerun の箱に数字。どちらも先に起動しておく ----
+#   docker compose up -d desktop rerun
+#   ブラウザ：http://localhost:6080/vnc.html（Genesis の窓）、http://localhost:9090/?url=rerun%2Bhttp%3A%2F%2Flocalhost%3A9876%2Fproxy（rerun）
+def _reachable(host, port, what, how):
+    """箱が起動しているかを先に確かめる。起動していないのに黙って進むと、何も映らないまま終わる。"""
+    try:
+        socket.create_connection((host, port), timeout=3).close()
+    except OSError:
+        raise SystemExit(f"{what}に届かない（{host}:{port}）。先に `{how}` を実行する")
+
+
+def viewer_view(env=0, pos=(1.6, -1.6, 1.0), lookat=(0.4, 0.0, 0.2)):
+    """Genesis ビューアで見る環境（番号）と、最初の視点。窓の中はマウスで回せる。make_scene(viewer=...) に渡す。"""
+    display = os.environ.get("DISPLAY", "desktop:1")
+    host, _, num = display.rpartition(":")
+    _reachable(host or "localhost", 6000 + int(num.split(".")[0]), "desktop の箱（仮想の画面）", "docker compose up -d desktop")
+    return {"env": env, "pos": pos, "lookat": lookat}
+
+
+def viewer_kwargs(view, dt=DT):
+    """gs.Scene(...) に渡す、窓の設定。view は viewer_view(...) の戻り値か None（窓を出さない）。"""
+    if not view:
+        return {"show_viewer": False}
+    return {"show_viewer": True,
+            "viewer_options": gs.options.ViewerOptions(res=(1280, 800), camera_pos=view["pos"], camera_lookat=view["lookat"],
+                                                       refresh_rate=round(1 / dt)),  # 画面の 1 秒 = シミュレーションの 1 秒
+            "vis_options": gs.options.VisOptions(rendered_envs_idx=[view["env"]])}  # 窓に描くのは選んだ 1 つの環境だけ
+
+
+def rerun_start(app):
+    """rerun の箱へ数字を送る準備。戻り値の rr で rr.log(...) する。時刻は rr.set_time("sim", duration=秒)。"""
+    import rerun as rr
+    url = os.environ.get("RERUN_URL", "rerun+http://rerun:9876/proxy")
+    host = url.split("//")[1].split(":")[0]
+    _reachable(host, 9876, "rerun の箱", "docker compose up -d rerun")
+    rr.init(app)
+    rr.connect_grpc(url)
+    print(f"rerun: {app} を送っている（ブラウザの rerun の画面の左上で、この記録を選ぶ）")
+    return rr
+
+
+def hold_viewer(scene):
+    """計算が終わったあとも、Genesis の窓を開いたままにする（視点を回して見直せる）。Ctrl+C で終わる。"""
+    print("viewer: 窓を開いたまま。終わるときは Ctrl+C")
+    try:
+        while scene.viewer.is_alive():
+            scene.viewer.update()
+            time.sleep(1 / 30)
+    except KeyboardInterrupt:
+        pass
+
