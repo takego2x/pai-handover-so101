@@ -43,7 +43,11 @@ for f in $FILES; do
     continue
   fi
   if [ -e "$f" ] && [ "$MODE" != "--force" ]; then
-    echo "skip (already exists): $f"
+    if cmp -s "$f" "$REF/$f"; then
+      echo "skip (already exists, same): $f"
+    else  # 黙って古い版を残さない（2026-10-17、録画を足す前の hold.py が残り --record が通らなかった）
+      echo "skip (already exists, DIFFERENT from the answer key): $f  ← 自分で書き換えていないなら --force で取り直す" >&2
+    fi
     continue
   fi
   mkdir -p "$(dirname "$f")"
