@@ -159,10 +159,10 @@ def quiet():
 
 
 # ---- 録画（映像で確かめる）。環境ごとに近くから撮り、表と同じ並びの 1 本の動画にまとめる ----
-def add_close_camera(scene, lookat=(0.55, 0.0, 0.17), res=(320, 240)):
-    """build の前に呼ぶ。部品と指を真横（-y の側）から撮るカメラ。どの環境も同じ位置から撮る。"""
+def add_close_camera(scene, lookat=(0.55, 0.0, 0.17), dist=0.75, res=(320, 240)):
+    """build の前に呼ぶ。部品と指を真横（-y の側）から dist [m] 離れて撮るカメラ。どの環境も同じ位置から撮る。"""
     x, y, z = lookat
-    return scene.add_camera(res=res, pos=(x, y - 0.75, z + 0.08), lookat=lookat, fov=45, GUI=False)
+    return scene.add_camera(res=res, pos=(x, y - dist, z + 0.08), lookat=lookat, fov=45, GUI=False)
 
 
 def start_recording(cam, path, fps=25):

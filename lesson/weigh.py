@@ -4,6 +4,7 @@
 持ち上げて静止させると、部品に働く外からの力は「指からの力」だけになり、その上向きの成分が m g に等しい。
 使い方: python lesson/weigh.py [--mistake moving]
   --mistake moving : 持ち上げている途中（加速している最中）に測る
+  --record out.mp4 : 環境ごとに真横から録画し、5 列に並べた 1 本にまとめる（左上に材質と測った重さ）
 """
 import argparse
 
@@ -14,6 +15,7 @@ import common as c
 ap = argparse.ArgumentParser()
 ap.add_argument("n", nargs="?", type=int, default=10)
 ap.add_argument("--mistake", choices=["moving"])
+ap.add_argument("--record", help="mp4 の保存先（例: outputs/L2.mp4）")
 args = ap.parse_args()
 c.quiet()
 
@@ -22,13 +24,16 @@ mats, true_mu = c.sample_parts(N)
 XY = np.array([0.55, 0.0])
 F_WEIGH = float(__import__("os").environ.get("F_WEIGH", 60.0))  # 重さを測るときの把持力。どの部品でも落とさないよう、上限で握る
 
-scene = c.make_scene()
+scene = c.make_scene(record=bool(args.record))
 scene.add_entity(c.gs.morphs.Plane())
 part = c.add_part(scene, XY)
 arm = c.add_franka(scene)
+cam = c.add_close_camera(scene, lookat=(*XY, 0.08), dist=0.5) if args.record else None
 scene.build(n_envs=N)
 m_true = c.set_parts(part, mats, true_mu)
 c.setup_franka(arm, N)
+if cam:
+    c.start_recording(cam, args.record)
 z_grip = c.SIDE / 2 + 0.115
 
 
@@ -82,6 +87,9 @@ else:
 m_hat = fz / c.G
 # 持ち上がっているか（部品の底が床から 1 cm 以上）。床に残った部品も、床が支える力で「重さ」は正しく読めてしまう
 lifted = part.get_pos()[:, 2].cpu().numpy() > c.SIDE / 2 + 0.01
+if cam:
+    c.stop_recording(cam, args.record, cols=5, ok=lifted,
+                     labels=[f"#{i} {mats[i]} {m_hat[i] * 1000:.0f} g" for i in range(N)])
 print(f"mistake={args.mistake}")
 print(f"{'#':>2s} {'material':9s} {'true [g]':>8s} {'measured [g]':>12s} {'error':>7s} {'lifted':>6s}")
 for i in range(N):
