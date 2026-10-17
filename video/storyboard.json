@@ -1,0 +1,14 @@
+[
+  {"card": "見て、触って、やさしく運ぶ", "sub": "材質の分からない部品を、ロボットが自分で測り、学習した方策で運ぶ", "sec": 6},
+  {"clip": "outputs/video/L1_grid.mp4", "caption": "握る力が足りないと落ちる（μ と力を変えた 24 通り。緑＝持てた、赤＝落とした）", "start": 0, "sec": 6.5},
+  {"card": "強く握れば落ちない。でも、部品を傷める", "sub": "何 N で握ればよいかは μ（摩擦係数）しだい。μ は材質と表面で大きく違い、見た目では分からない", "sec": 7},
+  {"image": "outputs/video/diagram.png", "sec": 8},
+  {"image": "outputs/video/tray_gemini.png", "caption": "AI 1：VLM（Gemini）が、画像から材質の候補を挙げる", "sec": 7},
+  {"clip": "outputs/video/scene_trials.mp4", "caption": "触る：力を下げながら試し掴み（落としてよい）。持てた力と落ちた力の間を絞り、μ を出す", "start": 3, "sec": 16},
+  {"clip": "outputs/video/scene_learning.mp4", "caption": "AI 2：重さと μ から、握る力・加速度・指の向きを決める方策を、シミュレータの中で学習", "start": 0, "sec": 10},
+  {"clip": "outputs/video/scene_carry.mp4", "caption": "学習した方策は、小さい力で、指を回る向きにそろえて運ぶ", "start": 0, "sec": 6},
+  {"clip": "outputs/video/clip_line.mp4", "caption": "3 台で測り、1 台で運ぶライン（2 倍速）。dora-rs と ROS 2 でノードに分けても 15/15", "start": 0, "sec": 24, "speed": 2},
+  {"image": "outputs/video/results.png", "sec": 8},
+  {"image": "outputs/video/failures.png", "sec": 12},
+  {"card": "見て・触って測れば、やさしく運べる", "sub": "データなし 60 N → 学習した方策 2.7 N（中央値、学習に使わない 90 部品で 90/90）", "sec": 7}
+]

@@ -38,10 +38,26 @@ def ff(*args):
         raise SystemExit(f"ffmpeg failed: {' '.join(args)}\n{r.stderr}")
 
 
+def wrap(d, text, f, width):
+    """画面の幅に収まるように折り返す（日本語は空白がないので、1 文字ずつ測る）。"""
+    lines, cur = [], ""
+    for ch in text:
+        if d.textlength(cur + ch, font=f) > width:
+            lines.append(cur)
+            cur = ch
+        else:
+            cur += ch
+    return lines + [cur] if cur else lines
+
+
 def draw_centered(d, text, y, size, fill):
+    """中央に書く。幅を超えたら折り返し、書いた行の数を返す。"""
     f = font(size)
-    w = d.textlength(text, font=f)
-    d.text(((W - w) / 2, y), text, font=f, fill=fill)
+    lines = wrap(d, text, f, W - 100)
+    for k, ln in enumerate(lines):
+        w = d.textlength(ln, font=f)
+        d.text(((W - w) / 2, y + k * (size + 12)), ln, font=f, fill=fill)
+    return len(lines)
 
 
 def card_png(path, title, sub=""):
@@ -53,11 +69,13 @@ def card_png(path, title, sub=""):
     im.save(path)
 
 
-def caption_png(path, text):
+def caption_png(path, text, size=30):
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    d.rectangle([0, H - 90, W, H], fill=(0, 0, 0, 170))
-    draw_centered(d, text, H - 70, 34, "white")
+    n = len(wrap(d, text, font(size), W - 100))
+    top = H - 30 - n * (size + 12)
+    d.rectangle([0, top - 16, W, H], fill=(0, 0, 0, 170))
+    draw_centered(d, text, top, size, "white")
     im.save(path)
 
 
@@ -70,8 +88,11 @@ def segment(seg, i, tmp):
         card_png(png, seg["card"], seg.get("sub", ""))
         ff("-loop", "1", "-t", str(seg["sec"]), "-i", str(png), *enc, str(out))
         return out
+    sp = float(seg.get("speed", 1))  # 倍速（2 なら 2 倍速。字幕に「2 倍速」と書くこと：提出の決まり）
     src = ["-loop", "1", "-t", str(seg["sec"]), "-i", seg["image"]] if "image" in seg else \
-        ["-ss", str(seg.get("start", 0)), "-t", str(seg["sec"]), "-i", seg["clip"]]
+        ["-ss", str(seg.get("start", 0)), "-t", str(seg["sec"] * sp), "-i", seg["clip"]]
+    if sp != 1:
+        scale = f"setpts=PTS/{sp},{scale}"
     if seg.get("caption"):
         cap = tmp / f"cap{i:02d}.png"
         caption_png(cap, seg["caption"])

@@ -69,12 +69,35 @@ def make_scene(substeps=10, record=False, viewer=None):
     if not getattr(gs, "_initialized", False):  # 1 つのプロセスで場面を 2 つ作るとき（L8）、起動は 1 回だけ
         gs.init(backend=gs.cpu, logging_level="warning")
     vis = gs.options.VisOptions(split_envs=True) if record else None  # 録画は環境ごとに別の動画
-    return gs.Scene(
+    clip = os.environ.get("PAI_CLIP")  # 動画の素材：環境変数で、1 つの環境を 1 台のカメラで録る（コードは変えない）
+    if clip and not record and not viewer:
+        vis = gs.options.VisOptions(rendered_envs_idx=[int(os.environ.get("PAI_CLIP_ENV", "0"))])
+    scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=DT, substeps=substeps),
         # 楕円錐の摩擦（既定の多角錐だと効く μ が下がり、じわじわ滑る）。batch_links_info は環境ごとに重さを変えるため
         rigid_options=gs.options.RigidOptions(box_box_detection=True, batch_links_info=True,
                                               friction_cone=gs.friction_cone.elliptic, impratio=10.0),
         **(viewer_kwargs(viewer) if viewer else {"vis_options": vis, "show_viewer": False}))
+    if clip and not record and not viewer:
+        _attach_clip_camera(scene, clip)
+    return scene
+
+
+def _attach_clip_camera(scene, path):
+    """PAI_CLIP=<mp4> のとき、build の前にカメラを置き、build の直後から録画を始め、プロセスの終わりに保存する。
+    構図は PAI_CLIP_CAM="x,y,z;lx,ly,lz"（カメラの位置; 見る点）。動画の 1 秒 = シミュレーションの 1 秒。"""
+    import atexit
+    cam_s = os.environ.get("PAI_CLIP_CAM", "1.4,-1.4,1.0;0.4,0.0,0.2")
+    pos, look = [tuple(float(v) for v in part.split(",")) for part in cam_s.split(";")]
+    cam = scene.add_camera(res=(1280, 720), pos=pos, lookat=look, fov=float(os.environ.get("PAI_CLIP_FOV", "45")), GUI=False)
+    build = scene.build
+
+    def build_and_record(*a, **k):
+        build(*a, **k)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        cam.start_recording(save_to_filename=str(path), fps=25)
+        atexit.register(lambda: (cam.stop_recording(), print(f"clip: {path}")))
+    scene.build = build_and_record
 
 
 def add_part(scene, xy, yaw_deg=0.0):

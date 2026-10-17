@@ -105,6 +105,7 @@ weighed = z_part() > c.SIDE / 2 + 0.01  # 60 N で持ち上がったか（持ち
 
 # 2. 失敗してよい試行
 lo, hi = np.full(N, F_LO), np.full(N, F_WEIGH)
+history = [[] for _ in range(N)]  # 部品ごとの試行の記録 [力 F, 持てたか, そのあとの lo, hi]（動画・グラフ用）
 drops = np.zeros(N, int)
 n_trials = np.full(N, args.trials)
 cands = [None] * N
@@ -133,6 +134,8 @@ if args.prior:
         held = z_part() > c.SIDE / 2 + 0.01
         hi = np.where(active & held, F, hi)
         lo = np.where(active & ~held, F, lo)
+        for i in np.where(active)[0]:
+            history[i].append([round(float(F[i]), 3), bool(held[i]), round(float(lo[i]), 3), round(float(hi[i]), 3)])
         held_once |= active & held
         drops += active & ~held
         n_trials += active
@@ -152,6 +155,8 @@ else:
         held = z_part() > c.SIDE / 2 + 0.01
         hi, lo = np.where(held, F, hi), np.where(held, lo, F)
         drops += ~held
+        for i in range(N):
+            history[i].append([round(float(F[i]), 3), bool(held[i]), round(float(lo[i]), 3), round(float(hi[i]), 3)])
 go(z_grip, 30)  # 下ろして放す
 t_part = steps * c.DT
 TRIAL_S = 1.6  # 試行 1 回の時間（下ろす 0.3 + 閉じる 0.6 + 持ち上げて止める 0.7 秒）
@@ -183,7 +188,8 @@ out = {"trials": args.trials, "time_per_part_s": round(t_part, 2), "seed0": args
        "data": [{"ok": bool(ok[i]), "mass_kg": round(float(m_hat[i]), 4), "mu": round(float(mu_hat[i]), 4),
                  "F_hold_N": round(float(F_hold[i]), 3), "F_carry_N": round(float(F_carry[i]), 3)} for i in range(N)],
        "truth": [{"material": mats[i], "mass_kg": round(float(m_true[i]), 4), "mu": round(float(true_mu[i]), 4),
-                  "drops": int(drops[i])} for i in range(N)]}
+                  "drops": int(drops[i])} for i in range(N)],
+       "history": history}
 c.ROOT.joinpath("outputs", "lesson").mkdir(parents=True, exist_ok=True)
 json.dump(out, open(args.out, "w"), indent=1)
 print("wrote", args.out)

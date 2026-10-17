@@ -183,6 +183,7 @@ def train(args):
     std = np.array([[0.3, 0.2, 0.2], [2.0, 1.0, 1.0], [0.8, 0.3, 0.3]])
     t0 = time.time()
     print(f"{'gen':>3s} {'best score':>10s} {'mean score':>10s} {'kF':>5s} {'a':>5s} {'yaw':>6s} {'wall':>6s}")
+    history = []  # 世代ごとの記録（グラフ・動画用）
     for g in range(args.gens):
         mats, mu, mu_hat, m = sample(P, 5000 + 100 * g, stream=g)
         Ws = [mean] + [mean + std * rng.standard_normal((3, 3)) for _ in range(pop - 1)]  # 方策を 16 通り作る
@@ -197,10 +198,14 @@ def train(args):
         mean = np.mean([Ws[i] for i in elite], axis=0)
         std = np.maximum(np.std([Ws[i] for i in elite], axis=0), 0.02)
         b = grp == elite[-1]
+        history.append({"gen": g, "best": float(sco[elite[-1]]), "mean": float(sco.mean()), "kF": float(kF[b].mean()),
+                        "a": float(a[b].mean()), "yaw_deg": float(np.degrees(yaw[b]).mean()),
+                        "success": float(ok[: pop * P].mean())})
         print(f"{g:3d} {sco[elite[-1]]:10.3f} {sco.mean():10.3f} {kF[b].mean():5.2f} {a[b].mean():5.2f} "
               f"{np.degrees(yaw[b]).mean():5.0f}° {time.time() - t0:5.0f}s", flush=True)
     json.dump({"W": mean.tolist(), "gens": args.gens, "parts_per_gen": P, "fail_penalty": fail,
-               "yaw_range_deg": math.degrees(YAW_RANGE), "yaw_wrap": YAW_WRAP, "yaw_one": YAW_ONE}, open(args.out, "w"), indent=1)
+               "yaw_range_deg": math.degrees(YAW_RANGE), "yaw_wrap": YAW_WRAP, "yaw_one": YAW_ONE,
+               "history": history}, open(args.out, "w"), indent=1)
     print("wrote", args.out)
     if args.mistake == "same_scene":
         print("---- evaluate in the SAME scene (mistake)")
