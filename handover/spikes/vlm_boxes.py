@@ -85,6 +85,47 @@ def cube_obj(path, side=0.03):
     return str(path)
 
 
+def dented_obj(path, side=0.03, depth=0.009, n=8):
+    """潰れた箱の OBJ：指で挟まれる 2 つの面（箱の x の ±面）が内側にへこみ、上の面も少し沈む。面ごとに UV を付ける。"""
+    h = side / 2
+    faces = [((0, 0, 1), (1, 0, 0), (0, 1, 0)), ((0, 0, -1), (1, 0, 0), (0, -1, 0)), ((1, 0, 0), (0, 1, 0), (0, 0, 1)),
+             ((-1, 0, 0), (0, -1, 0), (0, 0, 1)), ((0, 1, 0), (-1, 0, 0), (0, 0, 1)), ((0, -1, 0), (1, 0, 0), (0, 0, 1))]
+    v, vt, f = [], [], []
+    for nrm, u, w in faces:
+        nrm, u, w = map(np.array, (nrm, u, w))
+        base = len(v)
+        for j in range(n + 1):
+            for i in range(n + 1):
+                a, b = -1 + 2 * i / n, -1 + 2 * j / n
+                bump = (1 - a * a) * (1 - b * b)                    # 面の真ん中ほど深くへこむ
+                d = depth if abs(nrm[0]) == 1 else (0.35 * depth if nrm[2] == 1 else 0.0)
+                v.append(h * nrm + h * a * u + h * b * w - nrm * d * bump)
+                vt.append(((a + 1) / 2, (b + 1) / 2))
+        for j in range(n):
+            for i in range(n):
+                q = base + j * (n + 1) + i + 1
+                f.append((q, q + 1, q + n + 2))
+                f.append((q, q + n + 2, q + n + 1))
+    lines = [f"v {x:.6f} {y:.6f} {z:.6f}" for x, y, z in v] + [f"vt {a:.4f} {b:.4f}" for a, b in vt]
+    lines += [f"f {a}/{a} {b}/{b} {c}/{c}" for a, b, c in f]
+    Path(path).write_text("\n".join(lines) + "\n")
+    return str(path)
+
+
+def crushed_texture(base_fn, size=256):
+    """潰れた絵：元の絵を暗くし、しわ（折れ線）を描く。"""
+    rng = np.random.default_rng(3)
+    im = Image.fromarray((base_fn(size).astype(float) * 0.78).astype(np.uint8))
+    d = ImageDraw.Draw(im)
+    for _ in range(9):
+        x0, y0 = rng.integers(0, size, 2)
+        pts = [(int(x0), int(y0))]
+        for _ in range(4):
+            pts.append((int(pts[-1][0] + rng.integers(-60, 60)), int(pts[-1][1] + rng.integers(-60, 60))))
+        d.line(pts, fill=(60, 40, 25), width=3)
+    return np.asarray(im)
+
+
 def render():
     import genesis as gs
     gs.init(backend=gs.cpu, logging_level="warning")

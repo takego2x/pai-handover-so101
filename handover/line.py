@@ -24,7 +24,8 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import so101 as s  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent / "spikes"))
-from vlm_boxes import BOXES, cube_obj, cardboard_texture, foam_texture, metal_texture  # noqa: E402
+from vlm_boxes import (BOXES, cube_obj, dented_obj, crushed_texture, cardboard_texture, foam_texture,  # noqa: E402
+                       metal_texture)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--only", help="処理する箱の番号（カンマ区切り。0 から、左の箱から順に）")
@@ -66,16 +67,27 @@ TEX = {"cardboard": lambda: s.gs.surfaces.Default(diffuse_texture=s.gs.textures.
        "foam": lambda: s.gs.surfaces.Default(diffuse_texture=s.gs.textures.ImageTexture(image_array=foam_texture()), roughness=1.0),
        "metal": lambda: s.gs.surfaces.Default(diffuse_texture=s.gs.textures.ImageTexture(image_array=metal_texture()),
                                               roughness=0.25, metallic=0.9)}
-boxes = []
+dent = dented_obj(ROOT / "outputs" / "handover" / "cube_dent.obj")
+CRUSHED_TEX = {"cardboard": cardboard_texture, "foam": foam_texture}
+FAR = lambda k: (1.5 + 0.1 * k, 1.5, SIDE / 2)  # noqa: E731  画面の外（使わない箱を置いておく場所）
+boxes, shells = [], []
 for k, (name, look, grams, _) in enumerate(BOXES):
     az = AZ[k]
     ent = sc.add_entity(s.gs.morphs.Mesh(file=obj, pos=(R * math.cos(az), R * math.sin(az), SIDE / 2), euler=(0, 0, math.degrees(az))),
                         material=s.gs.materials.Rigid(friction=1.0, rho=1000.0), surface=TEX[look]())
     boxes.append(ent)
+    # 潰れた箱（凹んだ形・しわの絵）。壊れやすい箱だけ、画面の外に用意しておき、潰れた瞬間に元の箱と入れ替える
+    shells.append(sc.add_entity(s.gs.morphs.Mesh(file=dent, pos=FAR(k)),
+                                material=s.gs.materials.Rigid(friction=1.0, rho=1000.0),
+                                surface=s.gs.surfaces.Default(diffuse_texture=s.gs.textures.ImageTexture(
+                                    image_array=crushed_texture(CRUSHED_TEX[look])), roughness=0.95))
+                  if look in CRUSHED_TEX else None)
 cam = s.gs and sc.add_camera(res=(1280, 720), pos=(0.15, -0.55, 0.32), lookat=(0.15, -0.08, 0.03), fov=55, GUI=False) if args.record else None
 sc.build(n_envs=1)  # 環境 1 つでも、並列と同じ配列の形（環境の数 × …）にそろえる
-for ent, (name, look, grams, _) in zip(boxes, BOXES):
+for ent, sh, (name, look, grams, _) in zip(boxes, shells, BOXES):
     ent.set_mass(torch.tensor([grams / 1000.0], dtype=s.gs.tc_float))
+    if sh is not None:
+        sh.set_mass(torch.tensor([grams / 1000.0], dtype=s.gs.tc_float))
 A = s.Arm(sc, entA, (0, 0), 0, 1)
 B = s.Arm(sc, entB, (D, 0), 180, 1)
 for _ in range(30):
@@ -111,20 +123,38 @@ def tilt_of(box):
     return math.degrees(math.acos(max(-1.0, min(1.0, 1 - 2 * (q[1] ** 2 + q[2] ** 2)))))
 
 
+cur = list(boxes)   # いま場面にある箱（潰れたら、凹んだ箱に入れ替わる）
+
+
+def crush_swap(k):
+    """元の箱を画面の外へ、凹んだ箱を同じ位置・向きへ。以後の処理は凹んだ箱を相手に続ける。"""
+    if shells[k] is None or cur[k] is shells[k]:
+        return
+    pos, quat = boxes[k].get_pos(), boxes[k].get_quat()
+    shells[k].set_pos(pos)
+    shells[k].set_quat(quat)
+    shells[k].zero_all_dofs_velocity()
+    boxes[k].set_pos(torch.tensor([FAR(k)], dtype=s.gs.tc_float))
+    boxes[k].zero_all_dofs_velocity()
+    cur[k] = shells[k]
+
+
 results = []
 only = [int(x) for x in args.only.split(",")] if args.only else range(len(BOXES))
 for k in only:
     name, look, grams, _ = BOXES[k]
-    box, ans, limit = boxes[k], answers[k], CRUSH[look]
+    ans, limit = answers[k], CRUSH[look]
     st = {"peak": 0.0, "crushed": False, "recent": [], "where": ""}
 
-    def watch(i, st=st, box=box, limit=limit):
+    def watch(i, st=st, k=k, limit=limit):
+        box = cur[k]
         f = max(float(s.squeeze(A, box)[0]), float(s.squeeze(B, box)[0]))
         st["recent"] = (st["recent"] + [f])[-5:]
         fm = float(np.mean(st["recent"]))
         st["peak"] = max(st["peak"], fm)
         if fm > limit and not st["crushed"]:
             st["crushed"], st["where"] = True, f"{st.get('phase', '')} ({fm:.1f} N)"
+            crush_swap(k)
 
     # 0. Gemini の答えで探し方を決める。「壊れにくい」を信じるのは自信ありのときだけ（--mistake trust_ai では自信によらず）
     sturdy = (not ans.get("fragile", True)) and (ans.get("confidence") == "high" or args.mistake == "trust_ai")
@@ -132,7 +162,7 @@ for k in only:
     print(f"[{k}] {name} ({look}, {grams} g): Gemini says {ans.get('looks_like')} {ans.get('weight_g')} g, "
           f"fragile={ans.get('fragile')}, confidence={ans.get('confidence')} -> {'QUICK' if sturdy else 'GENTLE'} search")
     # 重さの基準：箱の真上の、持って止める姿勢で、何も持たないときの肩の関節の力を測る（姿勢が変わると腕の重さの分も変わる）
-    az, r, A.dyaw[:] = aim(A, box)
+    az, r, A.dyaw[:] = aim(A, cur[k])
 
     s.move(sc, [(A, az, r, Z_CARRY_A, s.CLOSE)], 150)
     v = []
@@ -146,14 +176,14 @@ for k in only:
     for tau in steps:
         if st["crushed"]:
             break
-        az, r, A.dyaw[:] = aim(A, box)
+        az, r, A.dyaw[:] = aim(A, cur[k])
         s.move(sc, [(A, az, r, 0.08, s.OPEN)], 100, watch)
         s.move(sc, [(A, az, r, zg, s.OPEN)], 80, watch)
         s.close_gently(sc, A, az, r, zg, tau, watch)
         s.move(sc, [(A, az, r, zg + LIFT_DZ, s.CLOSE)], 60, watch)
         s.move(sc, [(A, az, r, zg + LIFT_DZ, s.CLOSE)], 30, watch)
         tries += 1
-        if z_of(box) > SIDE / 2 + LIFT_DZ * 0.5 and tilt_of(box) < 10.0:
+        if z_of(cur[k]) > SIDE / 2 + LIFT_DZ * 0.5 and tilt_of(cur[k]) < 10.0:
             found = tau
             break
         A.set_grip_tau(s.TAU_MAX)
@@ -171,10 +201,10 @@ for k in only:
         sc.step()
         watch(0)
         taus.append(entA.get_dofs_control_force().cpu().numpy()[0, 1])
-    lever = float(np.linalg.norm(box.get_pos().cpu().numpy()[0, :2] - entA.get_link("upper_arm").get_pos().cpu().numpy()[0, :2]))
+    lever = float(np.linalg.norm(cur[k].get_pos().cpu().numpy()[0, :2] - entA.get_link("upper_arm").get_pos().cpu().numpy()[0, :2]))
     m_hat = (tau_empty - float(np.mean(taus))) / (9.81 * lever)   # 持っているとき − 持っていないとき（同じ姿勢）
     print(f"    weigh: shoulder tau empty {tau_empty:+.3f} (sd {sd_empty:.3f})  holding {np.mean(taus):+.3f} (sd {np.std(taus):.3f})  lever {lever:.3f} m"
-          f"  box z {z_of(box):.3f} tilt {tilt_of(box):.1f}")
+          f"  box z {z_of(cur[k]):.3f} tilt {tilt_of(cur[k]):.1f}")
     n_carry = int(150 * (1 + max(m_hat, 0.0) / 0.15))
     # 2. 台座に置く
     st["phase"] = "2-place"
@@ -186,7 +216,7 @@ for k in only:
     # 3. その 2 が持つ
     st["phase"] = "3-B pick"
     B.set_grip_tau(s.TAU_MAX)
-    az_b, r_b, B.dyaw[:] = aim(B, box)
+    az_b, r_b, B.dyaw[:] = aim(B, cur[k])
     s.move(sc, [(B, 0.0, 0.26, 0.20, s.CLOSE)], 120, watch)
     s.move(sc, [(B, az_b, r_b, 0.15, 0.6)], 100, watch)
     s.move(sc, [(B, az_b, r_b, 0.15, s.OPEN)], 40, watch)
@@ -203,7 +233,7 @@ for k in only:
     s.move(sc, [(B, az_d, float(np.linalg.norm(tgt)) - s.JAW, Z_CARRY_B, s.CLOSE)], n_carry, watch)
     s.move(sc, [(B, az_d, float(np.linalg.norm(tgt)) - s.JAW, Z_CARRY_B, s.OPEN)], 60, watch)
     s.move(sc, [(B, *B_WAIT, s.CLOSE)], 120, watch)
-    p = box.get_pos().cpu().numpy()[0]
+    p = cur[k].get_pos().cpu().numpy()[0]
     inside = abs(p[0] - bx) < 0.068 and abs(p[1] - by) < 0.068 and p[2] < 0.06
     results.append((name, look, grams, found, tries, m_hat, st["peak"], st["crushed"], inside, st["where"]))
     if not inside:
