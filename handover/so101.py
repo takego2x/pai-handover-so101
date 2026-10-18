@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import genesis as gs
 
-MODEL = os.environ.get("SO101_MODEL", "/m/Simulation/SO101/so101_new_calib.xml")
+MODEL = os.environ.get("SO101_MODEL", "/work/third_party/SO-ARM100/Simulation/SO101/so101_new_calib.xml")  # TheRobotStudio/SO-ARM100 a758567
 OFF = np.array([-0.0079, -0.000218, -0.0981])  # gripper リンクから gripperframe まで
 JAW = 0.019                                    # 目印から小箱の中心まで（腕の外向き）
 OPEN, CLOSE = 1.2, -0.17                       # 指の角度（開く／閉じきる）
