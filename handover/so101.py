@@ -21,6 +21,7 @@ OPEN, CLOSE = 1.2, -0.17                       # 指の角度（開く／閉じ�
 TAU_MAX = 2.94                                 # モーターの力の上限 [N·m]
 FOLD = np.array([0.0, -1.7, 1.6, 1.2, 0.0, 0.0])  # たたんだ姿勢
 PRE = 0.5                                      # 速く閉じる 1 段目の止め所（指の角度）
+MISTAKE = None  # わざと失敗（run.py の --mistake）。共通部品の中で起きる失敗は、ここで切り替える
 
 
 def rot(q):
@@ -67,7 +68,9 @@ def make_scene(env=0):
 
 
 def add_so101(scene, xy=(0, 0), yaw_deg=0.0):
-    return scene.add_entity(gs.morphs.MJCF(file=MODEL, pos=(*xy, 0), euler=(0, 0, yaw_deg), decompose_robot_error_threshold=0.0),
+    # わざと失敗 convexify：形を細かく分けずに単純化したまま（固定側の指は手首と 1 つの部品なので、包むとすき間が埋まる）
+    opts = {} if MISTAKE == "convexify" else {"decompose_robot_error_threshold": 0.0}
+    return scene.add_entity(gs.morphs.MJCF(file=MODEL, pos=(*xy, 0), euler=(0, 0, yaw_deg), **opts),
                             material=gs.materials.Rigid(friction=1.0))
 
 
@@ -101,6 +104,8 @@ class Arm:
     def Rd(self, az, dyaw=0.0):
         # 「手先を下へ倒す」回転は、腕自身の向き（yaw）で見た横の軸のまわりに回す（世界の y 軸で回すと、
         # 180° 回して置いた腕では手先が横を向く）
+        if MISTAKE == "world_tilt":  # わざと失敗：世界の y 軸で倒す（180° 回して置いたその 2 では、手先が横を向く）
+            return Rz(az + dyaw) @ Ry(math.pi / 2) @ self.R0
         return Rz(az + dyaw) @ Rz(self.yaw) @ Ry(math.pi / 2) @ Rz(-self.yaw) @ self.R0
 
     def tip(self):
@@ -120,6 +125,8 @@ def move(scene, plan, n, every=None):
     for k in range(n):
         s = min(1.0, (k + 1) / (0.7 * n))
         s = 3 * s ** 2 - 2 * s ** 3
+        if MISTAKE == "jump":  # わざと失敗：目標を一度に置く（強いばね・弱い減衰のモーターは行き過ぎる）
+            s = 1.0
         for arm, az, start, tgt, g in st:
             if k % 5 == 0 or k == n - 1:
                 cur = start + (tgt - start) * s
@@ -147,8 +154,9 @@ def close_gently(scene, arm, az, r, z, tau, every=None, mask=None):
     （持って待っている環境に 1 段目の最大の力をかけると、持っている小箱を強く挟み直して潰す）"""
     tau = np.broadcast_to(np.asarray(tau, float), (arm.n,))
     mask = np.ones(arm.n, bool) if mask is None else np.asarray(mask, bool)
+    pre = 0.25 if MISTAKE == "pre_close" else PRE  # わざと失敗：触れる直前まで速く閉じる（勢いで当たって潰す）
     arm.set_grip_tau(np.where(mask, TAU_MAX, tau))
-    move(scene, [(arm, az, r, z, np.where(mask, PRE, CLOSE))], 40, every)
+    move(scene, [(arm, az, r, z, np.where(mask, pre, CLOSE))], 40, every)
     arm.set_grip_tau(tau)
     move(scene, [(arm, az, r, z, CLOSE)], 200, every)  # 力の設定が小さいと閉じるのが遅いので、2 秒待つ
 
@@ -163,4 +171,6 @@ def squeeze(arm, obj):
     fixed, moving = arm.g.idx, arm.e.get_link("moving_jaw_so101_v1").idx
     f_fixed = (f * ((la == fixed) | (lb == fixed))).sum(axis=1)
     f_moving = (f * ((la == moving) | (lb == moving))).sum(axis=1)
+    if MISTAKE == "one_side":  # わざと失敗：両指の力を足す（片側の指がかすめただけでも「挟んだ」と数える）
+        return f_fixed + f_moving
     return np.minimum(f_fixed, f_moving)
