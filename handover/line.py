@@ -11,6 +11,13 @@
 使い方（答え合わせ用リポジトリの直下で）:
   docker compose run --rm -v <SO-ARM100>:/m:ro sim python handover/line.py [--only 0,1] [--record outputs/handover/line.mp4]
   --mistake trust_ai : Gemini の「壊れにくい」を、自信によらず信じる（発泡スチロールを石と見誤った答えで、強く握って潰す）
+  --mistake strong_a : その 1 がいきなり最大の力で握る（壊れやすい箱を潰す）
+  --mistake small_margin : 運ぶ余裕を小さく（1.25 倍）→ 運ぶ途中で重い箱を落とす
+  --mistake weak_b : その 2 が情報なしで弱く握る → 重い箱を落とす
+  --mistake world_tilt : 180° 回したその 2 を世界の軸で下に向ける → 手先が横を向いて掴めない
+  --cam wide,a,stand,bigbox : 録画の画角（カンマ区切りで同時に。wide=全体、a=その 1 の手元、stand=台座、bigbox=大箱）
+                              画角ごとに <record の名前>_<画角>.mp4 に書く
+  録画のとき、同じ名前の .json に、箱ごと・工程ごとの始まりのコマ番号を書く（場面ごとに切り出すため）
 """
 import argparse
 import json
@@ -30,14 +37,18 @@ from vlm_boxes import (BOXES, cube_obj, dented_obj, crushed_texture, cardboard_t
 ap = argparse.ArgumentParser()
 ap.add_argument("--only", help="処理する箱の番号（カンマ区切り。0 から、左の箱から順に）")
 ap.add_argument("--record")
-ap.add_argument("--mistake", choices=["trust_ai"])
+ap.add_argument("--mistake", choices=["trust_ai", "strong_a", "small_margin", "weak_b", "world_tilt"])
+ap.add_argument("--cam", default="wide")
+ap.add_argument("--carry", type=int, help="運ぶ step 数を固定する（既定は重さで決める。試し用）")
+ap.add_argument("--margin", type=float, help="運ぶ余裕の倍率（既定 2.0、small_margin では 1.25）")
 args = ap.parse_args()
+s.MISTAKE = args.mistake   # world_tilt は共通部品の中で切り替わる
 ROOT = Path(__file__).resolve().parents[1]
 
 CRUSH = {"cardboard": 15.0, "foam": 6.0, "metal": float("inf")}   # 箱の強さ：挟む力 [N] の上限
 GENTLE = [0.2, 0.25, 0.3, 0.4, 0.5, 0.65, 0.8]                    # 壊れやすい箱：弱い順
 QUICK = [0.65, 0.8, 1.2, 1.6]                                     # 壊れにくい箱：強めから
-MARGIN, SQ_PER_TAU = 2.0, 14.5
+MARGIN, SQ_PER_TAU = args.margin or (1.25 if args.mistake == "small_margin" else 2.0), 14.5
 D, R, SIDE, STAND_H = 0.44, 0.22, 0.03, 0.02
 Z_CARRY_A, Z_CARRY_B, LIFT_DZ, zg = 0.06, 0.07, 0.02, 0.020
 zs = STAND_H + 0.020
@@ -82,7 +93,13 @@ for k, (name, look, grams, _) in enumerate(BOXES):
                                 surface=s.gs.surfaces.Default(diffuse_texture=s.gs.textures.ImageTexture(
                                     image_array=crushed_texture(CRUSHED_TEX[look])), roughness=0.95))
                   if look in CRUSHED_TEX else None)
-cam = s.gs and sc.add_camera(res=(1280, 720), pos=(0.15, -0.55, 0.32), lookat=(0.15, -0.08, 0.03), fov=55, GUI=False) if args.record else None
+CAMS = {"wide": ((0.15, -0.55, 0.32), (0.15, -0.08, 0.03), 55),     # 全体
+        "a": ((0.08, -0.44, 0.18), (0.09, -0.13, 0.02), 45),         # その 1 の手元（床の 5 箱）
+        "stand": ((D / 2, -0.34, 0.17), (D / 2, 0.0, 0.04), 45),     # 台座（その 1 が置き、その 2 が持つ）
+        "bigbox": ((D - 0.02, -0.50, 0.20), (D, -0.20, 0.02), 45)}   # 大箱
+cams = {c: sc.add_camera(res=(1280, 720), pos=CAMS[c][0], lookat=CAMS[c][1], fov=CAMS[c][2], GUI=False)
+        for c in args.cam.split(",")} if args.record else {}
+rec = Path(args.record) if args.record else None
 sc.build(n_envs=1)  # 環境 1 つでも、並列と同じ配列の形（環境の数 × …）にそろえる
 for ent, sh, (name, look, grams, _) in zip(boxes, shells, BOXES):
     ent.set_mass(torch.tensor([grams / 1000.0], dtype=s.gs.tc_float))
@@ -92,9 +109,25 @@ A = s.Arm(sc, entA, (0, 0), 0, 1)
 B = s.Arm(sc, entB, (D, 0), 180, 1)
 for _ in range(30):
     sc.step()
-if cam:
-    Path(args.record).parent.mkdir(parents=True, exist_ok=True)
-    cam.start_recording(save_to_filename=args.record, fps=25)
+if cams:
+    rec.parent.mkdir(parents=True, exist_ok=True)
+    for c, cam in cams.items():
+        cam.start_recording(save_to_filename=str(rec.with_name(f"{rec.stem}_{c}.mp4")), fps=25)
+marks = []   # (箱, 工程, その工程が始まった step)。録画は 1 step 1 コマ
+n_step = [0]
+_step = sc.step
+
+
+def counted_step(*a, **kw):
+    n_step[0] += 1
+    return _step(*a, **kw)
+
+
+sc.step = counted_step   # 共通部品の move も sc.step を呼ぶので、録画の始まりからの step 数＝コマ番号になる
+
+
+def mark(k, phase):
+    marks.append({"box": k, "phase": phase, "step": n_step[0]})
 
 
 def aim(arm, box):
@@ -157,8 +190,11 @@ for k in only:
             crush_swap(k)
 
     # 0. Gemini の答えで探し方を決める。「壊れにくい」を信じるのは自信ありのときだけ（--mistake trust_ai では自信によらず）
+    mark(k, "1-search")
     sturdy = (not ans.get("fragile", True)) and (ans.get("confidence") == "high" or args.mistake == "trust_ai")
     steps = QUICK if sturdy else GENTLE
+    if args.mistake == "strong_a":  # わざと失敗：試さずに、いきなり最大の力で握る
+        steps = [s.TAU_MAX]
     print(f"[{k}] {name} ({look}, {grams} g): Gemini says {ans.get('looks_like')} {ans.get('weight_g')} g, "
           f"fragile={ans.get('fragile')}, confidence={ans.get('confidence')} -> {'QUICK' if sturdy else 'GENTLE'} search")
     # 重さの基準：箱の真上の、持って止める姿勢で、何も持たないときの肩の関節の力を測る（姿勢が変わると腕の重さの分も変わる）
@@ -195,6 +231,7 @@ for k in only:
     hold = min(found * MARGIN, max(0.7 * limit / SQ_PER_TAU, found)) if math.isfinite(limit) else found * MARGIN
     A.set_grip_tau(hold)
     st["phase"] = "1-weigh"
+    mark(k, "1-weigh")
     s.move(sc, [(A, az, r, Z_CARRY_A, s.CLOSE)], 100, watch)
     taus = []
     for _ in range(100):
@@ -205,26 +242,30 @@ for k in only:
     m_hat = (tau_empty - float(np.mean(taus))) / (9.81 * lever)   # 持っているとき − 持っていないとき（同じ姿勢）
     print(f"    weigh: shoulder tau empty {tau_empty:+.3f} (sd {sd_empty:.3f})  holding {np.mean(taus):+.3f} (sd {np.std(taus):.3f})  lever {lever:.3f} m"
           f"  box z {z_of(cur[k]):.3f} tilt {tilt_of(cur[k]):.1f}")
-    n_carry = int(150 * (1 + max(m_hat, 0.0) / 0.15))
+    n_carry = args.carry or int(150 * (1 + max(m_hat, 0.0) / 0.15))
     # 2. 台座に置く
     st["phase"] = "2-place"
+    mark(k, "2-place")
     s.move(sc, [(A, 0.0, D / 2 - s.JAW, Z_CARRY_A, s.CLOSE)], n_carry, watch)
     s.move(sc, [(A, 0.0, D / 2 - s.JAW, zs + 0.002, s.CLOSE)], 120, watch)
     s.move(sc, [(A, 0.0, D / 2 - s.JAW, zs + 0.002, s.OPEN)], 60, watch)
     s.move(sc, [(A, 0.0, D / 2 - s.JAW, 0.15, s.OPEN)], 80, watch)
     s.move(sc, [(A, -1.2, 0.18, 0.15, 0.6)], 100, watch)
+    print(f"    after place: box {np.round(cur[k].get_pos().cpu().numpy()[0], 3).tolist()}")
     # 3. その 2 が持つ
     st["phase"] = "3-B pick"
+    mark(k, "3-B pick")
     B.set_grip_tau(s.TAU_MAX)
     az_b, r_b, B.dyaw[:] = aim(B, cur[k])
     s.move(sc, [(B, 0.0, 0.26, 0.20, s.CLOSE)], 120, watch)
     s.move(sc, [(B, az_b, r_b, 0.15, 0.6)], 100, watch)
     s.move(sc, [(B, az_b, r_b, 0.15, s.OPEN)], 40, watch)
     s.move(sc, [(B, az_b, r_b, zs, s.OPEN)], 120, watch)
-    s.close_gently(sc, B, az_b, r_b, zs, hold, watch)
+    s.close_gently(sc, B, az_b, r_b, zs, 0.2 if args.mistake == "weak_b" else hold, watch)   # weak_b：情報なしで弱く
     s.move(sc, [(B, az_b, r_b, Z_CARRY_B, s.CLOSE)], 100, watch)
     # 4. 大箱へ（入れる場所を箱ごとに少しずらす）
     st["phase"] = "4-B carry"
+    mark(k, "4-B carry")
     off = [(-0.03, -0.03), (0.03, -0.03), (-0.03, 0.03), (0.03, 0.03), (0.0, 0.0)][k % 5]
     tgt = np.array([bx + off[0], by + off[1]]) - B.base
     az_d = math.atan2(tgt[1], tgt[0]) - B.yaw
@@ -233,14 +274,18 @@ for k in only:
     s.move(sc, [(B, az_d, float(np.linalg.norm(tgt)) - s.JAW, Z_CARRY_B, s.CLOSE)], n_carry, watch)
     s.move(sc, [(B, az_d, float(np.linalg.norm(tgt)) - s.JAW, Z_CARRY_B, s.OPEN)], 60, watch)
     s.move(sc, [(B, *B_WAIT, s.CLOSE)], 120, watch)
+    mark(k, "end")
     p = cur[k].get_pos().cpu().numpy()[0]
     inside = abs(p[0] - bx) < 0.068 and abs(p[1] - by) < 0.068 and p[2] < 0.06
     results.append((name, look, grams, found, tries, m_hat, st["peak"], st["crushed"], inside, st["where"]))
     if not inside:
         print(f"    {name} ended at {np.round(p, 3).tolist()} (big box center {bx:.3f}, {by:.3f})")
 
-if cam:
-    cam.stop_recording()
+if cams:
+    for cam in cams.values():
+        cam.stop_recording()
+    rec.with_suffix(".json").write_text(json.dumps(
+        {"fps": 25, "mistake": args.mistake, "cams": list(cams), "only": list(only), "steps": n_step[0], "marks": marks}, indent=1))
 print(f"mistake={args.mistake}")
 print(" box          look       true    grip     tries  measured  peak squeeze  crushed  result")
 for name, look, grams, found, tries, m_hat, peak, crushed, inside, where in results:

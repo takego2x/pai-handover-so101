@@ -67,11 +67,13 @@ def make_scene(env=0):
                     vis_options=gs.options.VisOptions(rendered_envs_idx=[env]), show_viewer=False)  # 描くのは環境 env だけ
 
 
-def add_so101(scene, xy=(0, 0), yaw_deg=0.0):
+def add_so101(scene, xy=(0, 0), yaw_deg=0.0, friction=1.0):
+    """friction：ロボットの表面の摩擦係数。Genesis では、触れた 2 つの物の摩擦係数の大きいほうが使われるので、
+    箱ごとの摩擦の違いを効かせたいときは、ロボットのほうを小さくする（潰れる箱の作品では 0.1）"""
     # わざと失敗 convexify：形を細かく分けずに単純化したまま（固定側の指は手首と 1 つの部品なので、包むとすき間が埋まる）
     opts = {} if MISTAKE == "convexify" else {"decompose_robot_error_threshold": 0.0}
     return scene.add_entity(gs.morphs.MJCF(file=MODEL, pos=(*xy, 0), euler=(0, 0, yaw_deg), **opts),
-                            material=gs.materials.Rigid(friction=1.0))
+                            material=gs.materials.Rigid(friction=friction))
 
 
 class Arm:

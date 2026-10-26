@@ -1,0 +1,22 @@
+[
+  {"clip": "outputs/handover/shoot/ok_all_a.mp4", "start": 51.24, "sec": 12, "speed": 1.3,
+   "caption": "1 力加減と重さを測る：その 1 は弱い力から少しずつ強めて試し掴み。150 g の段ボールは 2 回目（0.25 N·m）で持ち上がり、止めて肩の関節の力から 150 g と測る（1.3 倍速）"},
+  {"clip": "outputs/handover/shoot/f1_strong_a_a.mp4", "start": 0, "sec": 12, "speed": 0.7,
+   "caption": "失敗：試さずに、いきなり最大の力で握る → 挟む力 28 N。段ボールの強さ 15 N を超えて潰す（0.7 倍速）"},
+  {"clip": "outputs/handover/shoot/ok_all_stand.mp4", "start": 144.6, "sec": 12,
+   "caption": "2 台座で渡す：その 1 が 300 g の段ボールを台座に置く。その 2 は高い所で手先を真下に向けてから近づく"},
+  {"clip": "outputs/handover/shoot/f4_world_tilt_stand.mp4", "start": 21.8, "sec": 12,
+   "caption": "失敗：180° 回して置いたその 2 を、世界の軸のまま下に向ける → 手先が横を向き、台座の箱を払い落とす"},
+  {"clip": "outputs/handover/shoot/ok_all_stand.mp4", "start": 150.7, "sec": 12,
+   "caption": "3 その 2 が情報で持つ：その 1 の力加減 0.40 N·m の 2 倍を、潰れの 7 割（0.72 N·m）で抑えた力で握り、300 g を持ち上げる"},
+  {"clip": "outputs/handover/shoot/f3_weak_b_stand.mp4", "start": 36.0, "sec": 12,
+   "caption": "失敗：その 1 の情報を使わず、弱い力（0.2 N·m）で握る → 300 g が持ち上がらず、台座に残る"},
+  {"clip": "outputs/handover/shoot/ok_all_bigbox.mp4", "start": 154.2, "sec": 12,
+   "caption": "4 大箱に入れる：測った重さに合わせて、重い箱ほどゆっくり運ぶ（300 g は 4.5 秒）"},
+  {"clip": "outputs/handover/shoot/f2_small_margin_bigbox.mp4", "start": 28.2, "sec": 12,
+   "caption": "失敗：余裕を足さず、力加減のままの力で 0.6 秒で速く運ぶ → 大箱の手前で落とす"},
+  {"clip": "outputs/handover/shoot/ok_all_wide.mp4", "start": 0, "sec": 12, "speed": 13.85,
+   "caption": "5 一連の動作：Gemini が写真から予想した壊れやすさで、探し方を箱ごとに選ぶ。5 つとも大箱へ（測った重さ 27 / 16 / 150 / 399 / 300 g、約 14 倍速）"},
+  {"clip": "outputs/handover/shoot/f5_trust_ai_a.mp4", "start": 22.1, "sec": 12,
+   "caption": "失敗：Gemini の「石・壊れにくい」（自信は中）をそのまま信じ、強めの力から試す → 発泡スチロールを 1 回目で潰す"}
+]

@@ -10,6 +10,7 @@
 ]
 """
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -44,8 +45,15 @@ def wrap(d, text, f, width):
     for ch in text:
         # 句読点・閉じかっこは行頭に置かない（前の行に追い込む）
         if d.textlength(cur + ch, font=f) > width and ch not in "、。，．）」』】％":
-            lines.append(cur)
-            cur = ch
+            # 開きかっこは行末に置かない（次の行へ送る）
+            carry = cur[-1] if cur and cur[-1] in "（「『【" else ""
+            # 数字と単位（0.65 N·m、300 g）は途中で割らない：行末の英数字の並び（間の空白 1 つを含む）ごと次の行へ送る
+            if not carry and (re.match(r"[0-9A-Za-z.·/]", ch) or (ch == " " and re.search(r"[0-9]$", cur))):
+                m = re.search(r"[0-9A-Za-z.·/]+( [0-9A-Za-z.·/]+)* ?$", cur)
+                if m and m.start() > 0:
+                    carry = cur[m.start():]
+            lines.append(cur[:-len(carry)] if carry else cur)
+            cur = carry + ch
         else:
             cur += ch
     return lines + [cur] if cur else lines
@@ -64,9 +72,9 @@ def draw_centered(d, text, y, size, fill):
 def card_png(path, title, sub=""):
     im = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(im)
-    draw_centered(d, title, H / 2 - 50, 52, "black")
-    if sub:
-        draw_centered(d, sub, H / 2 + 30, 30, (90, 90, 90))
+    n = draw_centered(d, title, H / 2 - 50, 52, "black")
+    if sub:  # 題名が折り返したら、その行数だけ副題を下げる（重ならないように）
+        draw_centered(d, sub, H / 2 - 50 + n * (52 + 12) + 16, 30, (90, 90, 90))
     im.save(path)
 
 

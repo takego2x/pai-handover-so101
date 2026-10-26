@@ -1,0 +1,86 @@
+[
+ {
+  "clip": "video/assets/title_ED.mp4",
+  "start": 0,
+  "sec": 2.96
+ },
+ {
+  "image": "outputs/video2/take_concepts.png",
+  "sec": 8
+ },
+ {
+  "clip": "outputs/video2/p3_one.mp4",
+  "start": 0,
+  "sec": 12.0,
+  "speed": 2.06,
+  "caption": "実施したい動作：1 台目が箱を取って台座へ。2 台目が台座から取って大箱へ（成功の例、約 2.1 倍速）"
+ },
+ {
+  "clip": "outputs/video2/demo_crush.mp4",
+  "start": 0,
+  "sec": 5.6,
+  "caption": "課題 1　箱の強度：力いっぱい握ると潰す（挟む力 100 N に対し、この箱の強度は 7.5 N）"
+ },
+ {
+  "clip": "outputs/video2/demo_drop.mp4",
+  "start": 0,
+  "sec": 6.7,
+  "caption": "課題 2　箱の重さ：ぎりぎりの力で 250 g の箱を持ち上げ、速く運ぶと落とす"
+ },
+ {
+  "clip": "outputs/video2/demo_slip.mp4",
+  "start": 0,
+  "sec": 6.5,
+  "caption": "課題 3　箱の摩擦：同じ重さ・同じ力でも、摩擦 0.4 の箱（右）は滑って持ち上がらない（左は摩擦 1.0）"
+ },
+ {
+  "clip": "outputs/video2/p5_one.mp4",
+  "start": 0.0,
+  "sec": 10.024,
+  "speed": 2.94,
+  "caption": "解決（約 2.9 倍速）：1 台目がゆるい力から少しずつ試す。1 箱目は 4 回目で持ち上がり、重さ 157 g（本当 174 g）、強度 17 N（本当 16 N）"
+ },
+ {
+  "clip": "outputs/video2/p5_one.mp4",
+  "start": 29.47,
+  "sec": 17.531,
+  "speed": 2.94,
+  "caption": "2 箱目は 9 回目（τ 0.40）で持ち上がる。強度 60 N（本当 59 N）、重さ 165 g（本当 214 g）。2 台目は受け取った情報で、試さずに 1 回で持つ"
+ },
+ {
+  "clip": "outputs/video2/p5_one.mp4",
+  "start": 81.01,
+  "sec": 8.466,
+  "speed": 2.94,
+  "caption": "3 箱目は 1 回目で持ち上がる。重さ 47 g（本当 41 g）、強度 16 N（本当 24 N）。重さ・強度・摩擦は箱ごとにランダム"
+ },
+ {
+  "clip": "outputs/video2/p6_over.mp4",
+  "start": 0,
+  "sec": 25.229,
+  "speed": 3.32,
+  "caption": "応用（約 3.3 倍速）：1 台目 3 台が触って情報を集め、台座へ。2 台目は情報で次々と大箱へ運ぶ"
+ },
+ {
+  "clip": "outputs/video2/p6_over.mp4",
+  "start": 83.76,
+  "sec": 0.759,
+  "speed": 3.32,
+  "caption": "重さに対して弱すぎる箱（231 g・強度 9 N）は、潰さない力では運べないので運ばず、人の確認へ。6 箱で 86.3 秒、試した回数 26 回"
+ },
+ {
+  "image": "outputs/video2/take_camera.png",
+  "sec": 8
+ },
+ {
+  "clip": "outputs/video2/p7_over.mp4",
+  "start": 0,
+  "sec": 26.012,
+  "speed": 3.21,
+  "caption": "カメラで早く（約 3.2 倍速）：試す回数 26 → 17 回。1 台目を 2 台に減らしても 83.5 秒（3 台・カメラなしは 86.3 秒）"
+ },
+ {
+  "image": "outputs/video2/take_summary.png",
+  "sec": 9
+ }
+]

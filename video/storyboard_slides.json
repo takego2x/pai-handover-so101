@@ -1,0 +1,119 @@
+[
+ {
+  "clip": "video/assets/title_ED.mp4",
+  "start": 0,
+  "sec": 2.96
+ },
+ {
+  "page": "concepts",
+  "sec": 8
+ },
+ {
+  "page": "env",
+  "sec": 10
+ },
+ {
+  "page": "system",
+  "sec": 10
+ },
+ {
+  "page": "p3",
+  "sec": 12.0,
+  "videos": {
+   "p3": {
+    "clip": "outputs/video2/p3_one.mp4",
+    "start": 0,
+    "speed": 2.06
+   }
+  }
+ },
+ {
+  "page": "p4",
+  "sec": 8.0,
+  "videos": {
+   "p4a": {
+    "clip": "outputs/video2/demo_crush.mp4"
+   },
+   "p4b": {
+    "clip": "outputs/video2/demo_drop.mp4"
+   },
+   "p4c": {
+    "clip": "outputs/video2/demo_slip.mp4"
+   }
+  }
+ },
+ {
+  "page": "p5_0",
+  "sec": 10.024,
+  "videos": {
+   "p5": {
+    "clip": "outputs/video2/p5_one.mp4",
+    "start": 0.0,
+    "speed": 2.94
+   }
+  }
+ },
+ {
+  "page": "p5_1",
+  "sec": 17.531,
+  "videos": {
+   "p5": {
+    "clip": "outputs/video2/p5_one.mp4",
+    "start": 29.47,
+    "speed": 2.94
+   }
+  }
+ },
+ {
+  "page": "p5_2",
+  "sec": 8.466,
+  "videos": {
+   "p5": {
+    "clip": "outputs/video2/p5_one.mp4",
+    "start": 81.01,
+    "speed": 2.94
+   }
+  }
+ },
+ {
+  "page": "p6_0",
+  "sec": 25.229,
+  "videos": {
+   "p6": {
+    "clip": "outputs/video2/p6_over.mp4",
+    "start": 0,
+    "speed": 3.32
+   }
+  }
+ },
+ {
+  "page": "p6_1",
+  "sec": 0.759,
+  "videos": {
+   "p6": {
+    "clip": "outputs/video2/p6_over.mp4",
+    "start": 83.76,
+    "speed": 3.32
+   }
+  }
+ },
+ {
+  "page": "camera",
+  "sec": 8
+ },
+ {
+  "page": "p7",
+  "sec": 26.012,
+  "videos": {
+   "p7": {
+    "clip": "outputs/video2/p7_over.mp4",
+    "start": 0,
+    "speed": 3.21
+   }
+  }
+ },
+ {
+  "page": "summary",
+  "sec": 9
+ }
+]

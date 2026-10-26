@@ -1,0 +1,176 @@
+[
+ {
+  "clip": "video/assets/title_ED.mp4",
+  "start": 0,
+  "sec": 2.96
+ },
+ {
+  "image": "outputs/video/fig_system.png",
+  "sec": 5
+ },
+ {
+  "image": "outputs/video/fig_flow_fail.png",
+  "sec": 5
+ },
+ {
+  "clip": "outputs/handover/shoot/f1_strong_a_a.mp4",
+  "start": 0,
+  "sec": 10.2,
+  "speed": 0.82,
+  "caption": "失敗 1/5 測る：試さずに最大の力で握る → 28 N。段ボールの強さ 15 N を超えて潰す（0.8 倍速）"
+ },
+ {
+  "clip": "outputs/handover/shoot/f4_world_tilt_stand.mp4",
+  "start": 23.6,
+  "sec": 10.2,
+  "caption": "失敗 2/5 台座で渡す：180° 回して置いたその 2 を、世界の軸のまま下に向ける → 手先が横を向き、台座の箱を払い落とす"
+ },
+ {
+  "clip": "outputs/handover/shoot/f3_weak_b_stand.mp4",
+  "start": 37.8,
+  "sec": 10.2,
+  "caption": "失敗 3/5 その 2 が情報で持つ：その 1 の情報を使わず、弱い力（0.2 N·m）で握る → 300 g が持ち上がらず、台座に残る"
+ },
+ {
+  "clip": "outputs/handover/shoot/f2_small_margin_bigbox.mp4",
+  "start": 30.0,
+  "sec": 10.2,
+  "caption": "失敗 4/5 大箱に入れる：余裕を足さず、力加減のままの力で 0.6 秒で速く運ぶ → 大箱の手前で落とす"
+ },
+ {
+  "clip": "outputs/handover/shoot/f5_trust_ai_a.mp4",
+  "start": 23.9,
+  "sec": 10.2,
+  "caption": "失敗 5/5 Gemini の予想を使う：Gemini の「石・壊れにくい」（自信は中）をそのまま信じ、強めの力から試す → 発泡スチロールを 1 回目で潰す"
+ },
+ {
+  "image": "outputs/video/fig_flow_ok.png",
+  "sec": 5
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_a.mp4",
+  "start": 0.0,
+  "sec": 2.946,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）1/5 段ボール 30 g：Gemini「壊れやすい・自信 low」→ 弱い順に試す。0.20 N·m で持て、重さ 27 g → その 2 は 0.40 N·m で大箱へ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_stand.mp4",
+  "start": 9.6,
+  "sec": 3.854,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）1/5 段ボール 30 g：Gemini「壊れやすい・自信 low」→ 弱い順に試す。0.20 N·m で持て、重さ 27 g → その 2 は 0.40 N·m で大箱へ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_bigbox.mp4",
+  "start": 22.16,
+  "sec": 1.092,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）1/5 段ボール 30 g：Gemini「壊れやすい・自信 low」→ 弱い順に試す。0.20 N·m で持て、重さ 27 g → その 2 は 0.40 N·m で大箱へ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_a.mp4",
+  "start": 25.72,
+  "sec": 2.946,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）2/5 発泡スチロール 10 g：「石・壊れにくい」と見誤るが自信 medium → 信じずに弱い順。0.20 N·m、16 g → その 2 は 0.29 N·m"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_stand.mp4",
+  "start": 35.32,
+  "sec": 3.823,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）2/5 発泡スチロール 10 g：「石・壊れにくい」と見誤るが自信 medium → 信じずに弱い順。0.20 N·m、16 g → その 2 は 0.29 N·m"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_bigbox.mp4",
+  "start": 47.78,
+  "sec": 1.061,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）2/5 発泡スチロール 10 g：「石・壊れにくい」と見誤るが自信 medium → 信じずに弱い順。0.20 N·m、16 g → その 2 は 0.29 N·m"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_a.mp4",
+  "start": 51.24,
+  "sec": 4.664,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）3/5 段ボール 150 g：見た目は 1 と同じ → 弱い順。0.25 N·m、150 g → その 2 は 0.50 N·m で、3.0 秒かけて運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_stand.mp4",
+  "start": 66.44,
+  "sec": 4.235,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）3/5 段ボール 150 g：見た目は 1 と同じ → 弱い順。0.25 N·m、150 g → その 2 は 0.50 N·m で、3.0 秒かけて運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_bigbox.mp4",
+  "start": 80.24,
+  "sec": 1.473,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）3/5 段ボール 150 g：見た目は 1 と同じ → 弱い順。0.25 N·m、150 g → その 2 は 0.50 N·m で、3.0 秒かけて運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_a.mp4",
+  "start": 85.04,
+  "sec": 2.946,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）4/5 金属 400 g：「壊れにくい・自信 high」→ 強めの 0.65 N·m から 1 回で。399 g → その 2 は 1.3 N·m、5.5 秒で運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_stand.mp4",
+  "start": 94.64,
+  "sec": 4.995,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）4/5 金属 400 g：「壊れにくい・自信 high」→ 強めの 0.65 N·m から 1 回で。399 g → その 2 は 1.3 N·m、5.5 秒で運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_bigbox.mp4",
+  "start": 110.92,
+  "sec": 2.234,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）4/5 金属 400 g：「壊れにくい・自信 high」→ 強めの 0.65 N·m から 1 回で。399 g → その 2 は 1.3 N·m、5.5 秒で運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_a.mp4",
+  "start": 118.2,
+  "sec": 8.101,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）5/5 段ボール 300 g：弱い順の 4 回目 0.40 N·m で持て、300 g → その 2 は潰れの 7 割の 0.72 N·m、4.5 秒で運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_stand.mp4",
+  "start": 144.6,
+  "sec": 4.695,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）5/5 段ボール 300 g：弱い順の 4 回目 0.40 N·m で持て、300 g → その 2 は潰れの 7 割の 0.72 N·m、4.5 秒で運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/ok_all_bigbox.mp4",
+  "start": 159.9,
+  "sec": 1.933,
+  "speed": 3.259,
+  "caption": "成功（約 3.3 倍速）5/5 段ボール 300 g：弱い順の 4 回目 0.40 N·m で持て、300 g → その 2 は潰れの 7 割の 0.72 N·m、4.5 秒で運ぶ"
+ },
+ {
+  "clip": "outputs/handover/shoot/s3_line3_over.mp4",
+  "start": 0.0,
+  "sec": 10.719,
+  "speed": 1.418,
+  "caption": "応用（約 1.4 倍速）：その 1 を 3 台にして、同時に試し掴み。その 2 は受け取った情報で、試さずに 1 回で持って大箱へ"
+ },
+ {
+  "clip": "outputs/handover/shoot/s3_line3_over.mp4",
+  "start": 15.2,
+  "sec": 16.996,
+  "speed": 1.418,
+  "caption": "3 台が、段ボール・発泡スチロール・金属を、見た目で選んだ探し方で測る。測った重さと本当の重さの差は、6 箱とも 8 g 以内"
+ },
+ {
+  "clip": "outputs/handover/shoot/s3_line3_over.mp4",
+  "start": 39.3,
+  "sec": 27.292,
+  "speed": 1.418,
+  "caption": "その 2 は、台座に置かれた順に、1 箱 8〜12 秒で運ぶ。その 2 の試し掴みは 0 回。6 箱とも大箱に入った"
+ }
+]
