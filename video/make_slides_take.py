@@ -35,8 +35,9 @@ def r0(x):
     return int(x + 0.5)
 
 
-# 1 台目 2 台・カメラなしは録画していない（outputs/debug/f2_a6.log、2026-10-27）
-F2_NOCAM = (104.5, 19)
+SEED = 278                   # p6・p7 と比べる構成の箱の組（運べない箱が出ない組。p3・p5 は別の組）
+# 1 台目 2 台・カメラなしは録画していない（outputs/debug/f2_s278_pick3.log、2026-10-27）
+F2_NOCAM = (107.0, 11)
 # (1 台目の台数, カメラ, (全部の箱の判断が終わるまでの時間 [s], 試した回数), ロボットの台数＝1 台目＋2 台目)
 RESULTS = [("3 台", "なし", run_of("p6")[:2], 4), ("2 台", "なし", F2_NOCAM, 3), ("2 台", "あり", run_of("p7")[:2], 3)]
 
@@ -210,7 +211,7 @@ def page_concepts(prs):
         ("1 台目は触って確かめる", "ゆるい力から少しずつ試す／持ち上がる最小の力・重さ・強度を測る", "①"),
         ("2 台目は情報で素早く運ぶ", "受け取った情報で 1 回で持つ／重さに合わせた速さで運ぶ", "②"),
         ("カメラで試す回数を減らす", "Gemini が見た目から壊れにくさを予想／強度は必ず触って測る", "③"),
-        ("弱すぎる箱は運ばない", "重さに対して弱すぎる箱は、潰さない力では運べない ⇒ 人の確認へ", "④"),
+        ("潰さず、落とさない", "握る力は推定強度の 6 割まで／持ち上がった力の 3 倍の余裕で握って運ぶ", "④"),
     ]
     y = 6.0
     fig_title(s, X0, y - 0.1, W, "作品の考え方")
@@ -224,7 +225,7 @@ def page_concepts(prs):
     conclusion(s, "見て予想し、触って確かめ、情報で素早く運ぶ", y=15.8)
 
 
-def top_numbered(seed=22, first=2, n=6):
+def top_numbered(seed=SEED, first=2, n=6):
     """固定カメラ（真上）の画像を、箱のある所だけ切り抜き、箱に番号（1〜6）を振る。
     箱の位置は soft_line.py の置き方と同じ式で出し、カメラの式（vision._points の逆）で画素にする"""
     import math
@@ -257,7 +258,7 @@ def top_numbered(seed=22, first=2, n=6):
     return out, crop.size
 
 
-def page_camera(prs, seed=22, n=6):
+def page_camera(prs, seed=SEED, n=6):
     import re
     s = prs.slides.add_slide(prs.slide_layouts[6])
     chrome(s, "11 カメラ判定で早くする｜Gemini の見た目の予想",
@@ -293,9 +294,14 @@ def page_camera(prs, seed=22, n=6):
         text(s, xx, y, cols[2][1], 0.9, f"{int(sp['mass'] * 1000)} g／強度 {sp['strength']:.0f} N", size=11.5, color=DARK, anchor=MSO_ANCHOR.MIDDLE)
         hline(s, x1, y + 0.9, w1, MID, 0.5)
         y += 0.9
+    # 見た目どおりでない箱：「壊れにくい」と答えたのに強度が弱め（25 N 未満）、または「壊れやすい」と答えたのに強い（40 N 以上）
+    odd = [(i + 1, a, sp) for i, (a, sp) in enumerate(zip(ans, specs))
+           if (not a.get("fragile", True) and sp["strength"] < 25) or (a.get("fragile", True) and sp["strength"] >= 40)]
+    note = ("┗ 見た目どおりでない箱（" + "、".join(f"{i}：{'壊れにくく' if not a.get('fragile', True) else '壊れやすく'}見えて強度 {sp['strength']:.0f} N"
+                                               for i, a, sp in odd) + "）も、強度は触って測るので潰さない") if odd else \
+           "┗ 見た目の予想は試し始めの力にだけ使い、強度は必ず触って測る"
     labeled_frame(s, X0, 13.45, W, 1.95, "試し方",
-                  ["①「壊れにくい」と答えた箱：τ 0.25 から 0.05 ずつ／それ以外とカメラなし：τ 0.2 から 0.025 ずつ",
-                   "┗ 見た目どおりでない箱（1：金属に見えて強度 16 N）も、強度は触って測るので潰さない"], kind="fact", size=12)
+                  ["①「壊れにくい」と答えた箱：τ 0.25 から 0.05 ずつ／それ以外とカメラなし：τ 0.2 から 0.025 ずつ", note], kind="fact", size=12)
     (_, _, (t3, k3), _), (_, _, (t2, k2), _), (_, _, (tc, kc), _) = RESULTS
     conclusion(s, f"1 台目 2 台で、試す回数 {k2} → {kc} 回、時間 {t2:.1f} → {tc:.1f} 秒（金属に見える箱を 1 回で決める）", y=15.8)
 
@@ -304,7 +310,7 @@ def page_summary(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     chrome(s, "12 まとめ｜コンセプト図",
            ["見た目で予想 ⇒ 触って確かめる ⇒ 情報を渡す ⇒ 素早く運ぶ",
-            "重さに対して弱すぎる箱は運ばず、人の確認へ"], 12)
+            "2 台目は試さずに 1 回で持ち、止まらずに運ぶ"], 12)
     fig_title(s, X0, 5.7, W, "見て予想し、触って確かめ、情報で素早く運ぶ")
     y, h = 7.2, 3.2
     steps = [("カメラ", ["箱の位置を測る", "Gemini が予想"], "fact", 4.6),
@@ -324,7 +330,7 @@ def page_summary(prs):
         if i < len(steps) - 1:
             arrow(s, x + w + 0.1, y + h / 2, x + w + gap - 0.1, y + h / 2)
         x += w + gap
-    # 情報の流れ（1 台目 → 2 台目）と、弱すぎる箱
+    # 情報の流れ（1 台目 → 2 台目）
     xa = centers[1][0] + centers[1][1] / 2
     xb = centers[3][0] + centers[3][1] / 2
     yi = y + h + 0.9
@@ -335,16 +341,6 @@ def page_summary(prs):
     v.line.color.rgb = INK
     arrow(s, xb, yi, xb, y + h + 0.05, lw=2.25)
     tag(s, (xa + xb) / 2 - 3.6, yi - 0.38, "情報：力加減・重さ・強度")
-    rect(s, centers[1][0], 12.6, centers[1][1], 1.5, fill=WHITE, line=INK, lw=0.75, dash="lgDash",
-         lines=["重さに対して弱すぎる箱", "⇒ 運ばずに人の確認へ"], size=12, align=PP_ALIGN.CENTER)
-    xd = centers[1][0] + 1.2                     # 1 台目から、弱すぎる箱の枠へ（破線＝弱いつながり）
-    d = s.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Cm(xd), Cm(y + h), Cm(xd), Cm(12.6))
-    no_shadow(d)
-    d.line.color.rgb = INK
-    d.line.width = Pt(1.0)
-    e = d.line._get_or_add_ln()
-    e.append(e.makeelement(qn("a:prstDash"), {"val": "dash"}))
-    e.append(e.makeelement(qn("a:tailEnd"), {"type": "triangle", "w": "med", "len": "med"}))
     # 結果（右下）
     rows = [(f"1 台目 {n}・カメラ{c}", f"{t:.1f} 秒 × {m} 台 ＝ {r0(robot_sec(t, m))} 台・秒") for n, c, (t, k), m in RESULTS]
     xr, wr, yr = 15.6, 17.0, 12.0
@@ -462,21 +458,19 @@ def page_solution(prs, hl):
     add_video_slide(prs, [slot])
 
 
-def page_apply(prs, aside):
+def page_apply(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     chrome(s, "10 解決後の動作｜1 台目 3 台で情報を集める",
            ["1 台目 3 台が触って情報を集め、台座へ置く",
             "2 台目は情報で次々と大箱へ運ぶ（6 箱、重さ・強度・摩擦はランダム）"], 10)
-    fig_title(s, VX, 5.7, VW, "映像：1 台目 3 台＋2 台目（約 3.3 倍速）")
+    fig_title(s, VX, 5.7, VW, "映像：1 台目 3 台＋2 台目（約 4 倍速）")
     slot = video_slot(s, "p6", VX, 6.75, VW)
     sec, tries, d = run_of("p6")
-    weak = [b for b in d["boxes"] if not b.get("inside") and not b.get("crushed")]
-    labeled_frame(s, RX, 7.1, RW, 3.0, "結果", [f"6 箱を {sec:.1f} 秒で終える", f"┗ 1 台目が試した回数の合計 {tries} 回"], kind="fact")
-    labeled_frame(s, RX, 11.2, RW, 3.6, "弱すぎる箱", ["／".join(f"{r0(b['mass'] * 1000)} g・強度 {r0(b['strength'])} N" for b in weak) + "：潰さない力では運べない",
-                                                    "⇒ 運ばずに人の確認へ"],
-                  kind="new" if aside else "issue")
-    if aside:
-        tag(s, RX + RW - 4.2, 10.82, "いまここ")
+    fig_title(s, RX, 5.7, RW, f"6 箱を {sec:.1f} 秒で大箱へ（試した回数の合計 {tries} 回）")
+    rows = [(str(i + 1), f"{b['tries']} 回", f"{r0(b['m_hat'] * 1000)} g（{r0(b['mass'] * 1000)}）", f"{r0(b['strength_est'])} N（{r0(b['strength'])}）")
+            for i, b in enumerate(d["boxes"])]
+    y = table(s, RX, 6.75, [1.6, 2.8, 5.0, 4.79], ["箱", "試した回数", "重さ", "強度"], rows, row_h=0.9)
+    text(s, RX, y + 0.2, RW, 0.6, "*カッコ内は本当の値", size=9.5, color=DARK)
     conclusion(s, "情報を集める台数を増やせば、2 台目は止まらずに運べる", y=15.8)
     add_video_slide(prs, [slot])
 
@@ -485,14 +479,17 @@ def page_camera_run(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
     chrome(s, "11 カメラ判定で早くする｜1 台目を 2 台に",
            ["Gemini が「壊れにくい」と見た箱だけ、大きく刻んで試す",
-            f"ロボットの総稼働時間（台数 × 時間）で比べる：1 台目を 1 台減らしても、時間は {r0((RESULTS[2][2][0] / RESULTS[0][2][0] - 1) * 100)}% しか延びない"], 11)
-    fig_title(s, VX, 5.7, VW, "映像：1 台目 2 台＋カメラ（約 3.2 倍速）")
+            "ロボットの総稼働時間（台数 × 時間）で比べる：1 台目を 1 台減らしても、" + (
+                f"3 台より {r0((1 - RESULTS[2][2][0] / RESULTS[0][2][0]) * 100)}% 早く終わる" if RESULTS[2][2][0] < RESULTS[0][2][0]
+                else f"時間は {r0((RESULTS[2][2][0] / RESULTS[0][2][0] - 1) * 100)}% しか延びない")], 11)
+    fig_title(s, VX, 5.7, VW, "映像：1 台目 2 台＋カメラ（約 4 倍速）")
     slot = video_slot(s, "p7", VX, 6.75, VW)
     fig_title(s, RX, 5.7, RW, "同じ 6 箱の判断を終えるまで")
-    rows = [(str(i + 1), n, c, f"{t:.1f} 秒", f"{r0(robot_sec(t, m))} 台・秒") for i, (n, c, (t, k), m) in enumerate(RESULTS)]
-    y = table(s, RX, 6.75, [1.2, 2.4, 2.4, 3.3, 4.89], ["", "1 台目", "カメラ", "時間", "総稼働時間"], rows, hl=2)
-    text(s, RX, y + 0.2, RW, 2.0, ["*総稼働時間＝ロボットの台数（1 台目＋2 台目）× 時間",
-                                   "*1 組の箱（6 箱）を 1 回ずつ流した結果。運べない箱 1 つの判断（人の確認へ）を含む",
+    rows = [(str(i + 1), n, c, f"{t:.1f} 秒", f"{k} 回", f"{r0(robot_sec(t, m))} 台・秒") for i, (n, c, (t, k), m) in enumerate(RESULTS)]
+    y = table(s, RX, 6.75, [1.0, 2.0, 1.9, 2.9, 2.5, 3.89], ["", "1 台目", "カメラ", "時間", "試した回数", "総稼働時間"], rows, hl=2)
+    text(s, RX, y + 0.2, RW, 2.0, ["*試した回数＝1 台目が 6 箱を掴んで試した回数の合計",
+                                   "*総稼働時間＝ロボットの台数（1 台目＋2 台目）× 時間",
+                                   "*1 組の箱（6 箱）を 1 回ずつ流した結果。6 箱とも大箱へ",
                                    "*同じ箱でも、掴む台や位置で持ち上がる力は変わる"], size=9.5, color=DARK)
     (t3, _), m3 = RESULTS[0][2], RESULTS[0][3]
     (tc, _), mc = RESULTS[2][2], RESULTS[2][3]
@@ -617,8 +614,7 @@ if __name__ == "__main__":
     page_issues(prs); order.append("p4")
     for hl in range(3):
         page_solution(prs, hl); order.append(f"p5_{hl}")
-    page_apply(prs, False); order.append("p6_0")
-    page_apply(prs, True); order.append("p6_1")
+    page_apply(prs); order.append("p6")
     page_camera(prs); order.append("camera")
     page_camera_run(prs); order.append("p7")
     page_summary(prs); order.append("summary")

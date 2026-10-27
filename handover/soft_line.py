@@ -388,6 +388,11 @@ def first(i):
     for b in mine:
         name, ent, seen = b["name"], b["ent"], b["seen"]
         b["_busy"] = True
+        give([i], f"1-{i}")
+        # 台座のとなりの箱を試して測る間は、その台座の札を持つ（2 台目が台座の箱を取りに来ると、腕どうしが触れて肩の力がずれ、
+        # 重さを −1 kg・1.6 kg と測った。3 台の構成の 1-1、seed 333・118、2026-10-27）
+        if math.hypot(seen[0] - STAND_XY[i][0], seen[1] - STAND_XY[i][1]) < 0.17:
+            yield from take([i], f"1-{i}")
         c = relook(seen[:2])                     # 近づく前に見直す（ほかの箱を処理している間に動いたかもしれない）
         seen = c if c is not None else seen
         ans = GEMINI.get(id(b["seen"])) if GEMINI else None
@@ -409,6 +414,22 @@ def first(i):
         yield from move(arm, az, r, 0.08, s.OPEN, 100)
         yield from move(arm, az, r, zg + LIFT_DZ, s.OPEN, 60)     # 空の手の肩の力を、持ち上げる高さで測っておく（持てたかの比べる相手）
         tau_lift_ref = yield from shoulder_tau(arm)
+        # 基準は、宙で測った空の手の力とほぼ同じになるはず（高さが 2.5 cm 違うだけ。ふだんの差は 0.01 N·m）。大きくずれたら、
+        # 腕が何かに押されている（隣の腕が手首のカメラに触れ、−0.43 → −2.42 N·m。重さを −1 kg と測り続け、強い金属の箱を
+        # 「安全な力では持てない」とした。2026-10-27、seed 333）。少し待って測り直す
+        for _ in range(5):
+            if abs(tau_lift_ref - tau_empty) <= 0.1:
+                break
+            for _ in range(100):
+                yield
+            tau_lift_ref = yield from shoulder_tau(arm)
+        if os.environ.get("SOFT_DEBUG"):
+            c_ = arm.e.get_contacts()
+            nm_ = {l.idx: l.name for l in arm.e.links}
+            for x in boxes:
+                for l in x["ent"].links: nm_[l.idx] = f"{x['name']}:{l.name}"
+            pr_ = sorted({(nm_.get(int(u), int(u)), nm_.get(int(v), int(v))) for u, v, m_ in zip(c_["link_a"].cpu().numpy()[0], c_["link_b"].cpu().numpy()[0], c_["valid_mask"].cpu().numpy()[0]) if m_})
+            print(f"      DEBUG 空の手の基準 {name}: 宙 {tau_empty:.3f}  持ち上げる高さ {tau_lift_ref:.3f} N·m  触れている {pr_}", flush=True)
         yield from move(arm, az, r, zg, s.OPEN, 60)
         if os.environ.get("SOFT_DEBUG"):
             c = arm.e.get_contacts()
@@ -527,6 +548,7 @@ def first(i):
             yield from move(arm, az, r, zg + 0.002, s.OPEN, 50)
             yield from move(arm, az, r, 0.12, s.OPEN, 80)
             continue
+        give([i], f"1-{i}")             # 台座が空くのを待つ前に返す（持ったままだと、2 台目が台座の箱を取りに来られない）
         while stands[i]["box"] is not None and not stands[i]["blocked"]:
             yield
         if stands[i]["blocked"]:     # その 2 が持てなかった箱が台座に残っている：重ねて置くと箱どうしがぶつかって潰れた
@@ -558,6 +580,7 @@ def first(i):
             continue
         stands[i].update(box=b, info=(found, m_hat, strength), ready_at=t[0])
         mark(f"1-{i}", name, f"台座 {i} に置いた → 情報を渡す")
+    give([i], f"1-{i}")
     mark(f"1-{i}", "-", "終わり")
 
 

@@ -1,7 +1,7 @@
 """絵コンテ（video/storyboard_slides.json）の映像の切れ目と長さを、録画の記録（outputs/video2/<名前>.json）から入れ直す。
 
   p5：1 台目が箱を台座に置いた時刻で 3 ページに分ける（ページごとに、いま映っている箱の行を太字にする）
-  p6：弱すぎる箱を「人の確認へ」と決めた時刻で 2 ページに分ける（後のページで「いまここ」）
+  p6：全部を 1 ページ（運べない箱が出ない組にしたため、2 ページに分けない）
   p7：全部を 1 ページ
   倍速は絵コンテの値のまま。撮り直したら、これを流してから compose_slides.py
 
@@ -34,8 +34,7 @@ board = json.loads(BOARD.read_text())
 end, marks = run("p5")
 cut(board, "p5_", "p5", [0.0] + [m["step"] / 100 for m in marks if m["who"].startswith("1-") and "台座 0 に置いた" in m["what"]][:2] + [end])
 end, marks = run("p6")
-aside = [m["step"] / 100 for m in marks if "人の確認へ" in m["what"] and m["who"].startswith("1-")]
-cut(board, "p6_", "p6", [0.0, aside[0], end])
+cut(board, "p6", "p6", [0.0, end])
 end, _ = run("p7")
 cut(board, "p7", "p7", [0.0, end])
 BOARD.write_text(json.dumps(board, ensure_ascii=False, indent=1))

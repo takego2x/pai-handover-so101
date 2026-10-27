@@ -1,0 +1,46 @@
+```json
+[
+  {
+    "point": [797, 238],
+    "looks_like": "styrofoam",
+    "weight_g": [2, 10],
+    "fragile": true,
+    "confidence": "medium"
+  },
+  {
+    "point": [732, 266],
+    "looks_like": "cardboard",
+    "weight_g": [5, 30],
+    "fragile": true,
+    "confidence": "medium"
+  },
+  {
+    "point": [687, 319],
+    "looks_like": "metal",
+    "weight_g": [15, 60],
+    "fragile": false,
+    "confidence": "medium"
+  },
+  {
+    "point": [607, 672],
+    "looks_like": "metal",
+    "weight_g": [15, 60],
+    "fragile": false,
+    "confidence": "medium"
+  },
+  {
+    "point": [650, 725],
+    "looks_like": "metal",
+    "weight_g": [15, 60],
+    "fragile": false,
+    "confidence": "medium"
+  },
+  {
+    "point": [668, 796],
+    "looks_like": "cardboard",
+    "weight_g": [5, 30],
+    "fragile": true,
+    "confidence": "medium"
+  }
+]
+```

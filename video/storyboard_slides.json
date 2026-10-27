@@ -84,24 +84,13 @@
   }
  },
  {
-  "page": "p6_0",
-  "sec": 11.355,
+  "page": "p6",
+  "sec": 27.902,
   "videos": {
    "p6": {
     "clip": "outputs/video2/p6_over.mp4",
     "start": 0.0,
-    "speed": 3.32
-   }
-  }
- },
- {
-  "page": "p6_1",
-  "sec": 14.81,
-  "videos": {
-   "p6": {
-    "clip": "outputs/video2/p6_over.mp4",
-    "start": 37.7,
-    "speed": 3.32
+    "speed": 4.0
    }
   }
  },
@@ -111,12 +100,12 @@
  },
  {
   "page": "p7",
-  "sec": 28.33,
+  "sec": 26.27,
   "videos": {
    "p7": {
     "clip": "outputs/video2/p7_over.mp4",
     "start": 0.0,
-    "speed": 3.21
+    "speed": 4.0
    }
   }
  },

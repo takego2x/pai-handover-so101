@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "point": [798, 238],
+    "looks_like": "cardboard",
+    "weight_g": [10, 100],
+    "fragile": true,
+    "confidence": "medium"
+  },
+  {
+    "point": [735, 267],
+    "looks_like": "cardboard",
+    "weight_g": [10, 100],
+    "fragile": true,
+    "confidence": "medium"
+  },
+  {
+    "point": [668, 795],
+    "looks_like": "cardboard",
+    "weight_g": [10, 100],
+    "fragile": true,
+    "confidence": "medium"
+  }
+]
+```
