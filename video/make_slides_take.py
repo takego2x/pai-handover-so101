@@ -24,6 +24,27 @@ OUT = ROOT / "outputs" / "video2"
 sys.path.insert(0, str(ROOT / "handover"))
 import softbox as sb  # noqa: E402
 
+
+def run_of(name):
+    """録画の記録（outputs/video2/<name>.json）から、時間 [s]・試した回数の合計・箱ごとの値。数字を手で写さない"""
+    d = json.loads((OUT / f"{name}.json").read_text())
+    return d["steps"] / 100, sum(b["tries"] or 0 for b in d["boxes"]), d
+
+
+def r0(x):
+    return int(x + 0.5)
+
+
+# 1 台目 2 台・カメラなしは録画していない（outputs/debug/f2_a6.log、2026-10-27）
+F2_NOCAM = (104.5, 19)
+# (1 台目の台数, カメラ, (全部の箱の判断が終わるまでの時間 [s], 試した回数), ロボットの台数＝1 台目＋2 台目)
+RESULTS = [("3 台", "なし", run_of("p6")[:2], 4), ("2 台", "なし", F2_NOCAM, 3), ("2 台", "あり", run_of("p7")[:2], 3)]
+
+
+def robot_sec(t, n):
+    """ロボットの総稼働時間 [台・秒]＝台数 × 全部の箱の判断が終わるまでの時間"""
+    return t * n
+
 FONT = "Meiryo UI"
 INK, DARK, MID, LIGHT, BAND, RULE = (RGBColor(0x1A, 0x1A, 0x1A), RGBColor(0x40, 0x40, 0x40), RGBColor(0xBF, 0xBF, 0xBF),
                                      RGBColor(0xF2, 0xF2, 0xF2), RGBColor(0xF2, 0xF2, 0xF2), RGBColor(0xE8, 0xE8, 0xE8))
@@ -158,11 +179,33 @@ def tag(s, x, y, t):
 
 
 # ---------------------------------------------------------------- ページ
+def page_real(prs):
+    """現実の場面（物流の返品処理）と、この作品での模擬の対応。右の絵は video/still_twin_boxes.py で描いた seed 22 の段ボール 2 つ"""
+    from PIL import Image
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    chrome(s, "2 現実の場面｜物流の処理",
+           ["物流の処理では、あらかじめ重さや滑りやすさ、壊れやすさを把握して処理しないといけない",
+            "ロボットではこの情報が不足している"], 2)
+    # 左：現実（生成 AI で作ったイメージ。作者提供、2026-10-27）。切らずに大きく置き、3 つの物に「？」を重ねる
+    # 写真だけを大きく（模擬の絵・対応表・結論の箱は置かない。2026-10-27 作者）
+    photo = Image.open(OUT / "real_returns.png")
+    ph_, py_ = 10.2, 6.6                                     # 写真の高さと上端（上に図表タイトル、下に注記）
+    pw_ = ph_ * photo.width / photo.height
+    px_ = X0 + (W - pw_) / 2
+    fig_title(s, px_, 5.6, pw_, "重い？滑る？潰れる？")
+    s.shapes.add_picture(str(OUT / "real_returns.png"), Cm(px_), Cm(py_), height=Cm(ph_))
+    k_ = pw_ / photo.width                                    # 画素 → cm
+    for u, v in [(470, 300), (915, 530), (1380, 600)]:        # 手に持った箱・金属のケース・ラップを巻いた箱
+        rect(s, px_ + u * k_ - 1.4, py_ + v * k_ - 0.65, 2.8, 1.3, fill=INK, line=WHITE, lw=1.5, lines="？kg", size=22,
+             bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    text(s, px_, 16.8, pw_, 0.6, "*写真は生成 AI で作成したイメージ", size=9, color=DARK)
+
+
 def page_concepts(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "2 コンセプト",
+    chrome(s, "3 コンセプト",
            ["箱の強度・重さ・摩擦は、見た目だけでは分からない（箱ごとにランダム）",
-            "①触って確かめる 1 台目、②情報で運ぶ 2 台目、③カメラで試す回数を減らせるのでは？"], 2)
+            "①触って確かめる 1 台目、②情報で運ぶ 2 台目、③カメラで試す回数を減らせるのでは？"], 3)
     rows = [
         ("1 台目は触って確かめる", "ゆるい力から少しずつ試す／持ち上がる最小の力・重さ・強度を測る", "①"),
         ("2 台目は情報で素早く運ぶ", "受け取った情報で 1 回で持つ／重さに合わせた速さで運ぶ", "②"),
@@ -181,15 +224,54 @@ def page_concepts(prs):
     conclusion(s, "見て予想し、触って確かめ、情報で素早く運ぶ", y=15.8)
 
 
+def top_numbered(seed=22, first=2, n=6):
+    """固定カメラ（真上）の画像を、箱のある所だけ切り抜き、箱に番号（1〜6）を振る。
+    箱の位置は soft_line.py の置き方と同じ式で出し、カメラの式（vision._points の逆）で画素にする"""
+    import math
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.open(ROOT / "handover" / "data" / f"top_first{first}_n{n}_seed{seed}.png").convert("RGB")
+    D, R, BOX_AZ, stations = 0.44, 0.22, [40, 64, 88], {1: [0], 2: [0, -100], 3: [0, 100, -100]}[first]
+    side = {0: 1, 100: -1, -100: 1}
+    cx, cy, H, fov, res = 0.05, 0.0, 1.8, 40, 1280           # soft_line.py の add_top_camera と同じ
+    f = (res / 2) / math.tan(math.radians(fov) / 2)
+    z = H - 0.03                                              # 箱の上の面までの距離
+    pts = []
+    for j in range(n):
+        a = stations[j % len(stations)]
+        yaw = math.radians(a + 180)
+        w = yaw + side[a] * math.radians(BOX_AZ[j // len(stations)])
+        bx, by = D * math.cos(math.radians(a)) + R * math.cos(w), D * math.sin(math.radians(a)) + R * math.sin(w)
+        pts.append(((bx - cx) * f / z + (res - 1) / 2, -(by - cy) * f / z + (res - 1) / 2))
+    us, vs = [p[0] for p in pts], [p[1] for p in pts]
+    pad = 90
+    box = (int(min(us)) - pad, int(min(vs)) - pad, int(max(us)) + pad, int(max(vs)) + pad)
+    crop = img.crop(box)
+    dr = ImageDraw.Draw(crop)
+    font = ImageFont.truetype(str(Path.home() / "Library" / "Application Support" / "LibreOffice" / "4" / "user" / "fonts" / "meiryob.ttc"), 24)
+    for i, (u, v) in enumerate(pts):
+        x, y = u - box[0] + 26, v - box[1] - 26              # 箱の右上に、黒地に白の番号
+        dr.rectangle([x - 15, y - 15, x + 15, y + 15], fill=(26, 26, 26))
+        dr.text((x, y), str(i + 1), fill=(255, 255, 255), font=font, anchor="mm")
+    out = OUT / "top_numbered.png"
+    crop.save(out)
+    return out, crop.size
+
+
 def page_camera(prs, seed=22, n=6):
+    import re
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "9 カメラ判定で早くする｜Gemini の見た目の予想",
-           ["Gemini は材質を 6 つとも当てたが、重さは当てられない（中身は写真に写らない）",
-            "「壊れにくい」と見た箱だけ大きく刻んで試せば、試す回数を減らせるのでは？"], 9)
-    fig_title(s, X0, 5.7, 13.2, "Gemini に見せた写真（左から 1〜6）")
-    s.shapes.add_picture(str(ROOT / "handover" / "data" / f"softboxes_seed{seed}_n{n}.png"), Cm(X0 + 1.1), Cm(6.75), width=Cm(11.0))
-    txt = (ROOT / "handover" / "data" / f"softboxes_seed{seed}_n{n}.gemini.txt").read_text()
-    ans = sorted(json.loads(txt.split("```json")[-1].split("```")[0] if "```" in txt else txt), key=lambda a: a["point"][1])
+    chrome(s, "11 カメラ判定で早くする｜Gemini の見た目の予想",
+           ["固定カメラ（真上）の画像を Gemini に見せ、箱ごとに材質・壊れやすさ・重さを答えさせる",
+            "「壊れにくい」と見た箱だけ大きく刻んで試せば、試す回数を減らせるのでは？"], 11)
+    fig_title(s, X0, 5.7, 13.2, "Gemini に見せた画像（固定カメラ、一部を拡大）")
+    pic, (pw, ph) = top_numbered(seed, 2, n)
+    wcm = min(11.0, 8.4 * pw / ph)                              # 高さ 8.4 cm まで
+    s.shapes.add_picture(str(pic), Cm(X0 + (13.2 - wcm) / 2), Cm(6.75), width=Cm(wcm))
+    # 箱ごとの Gemini の答え：p7（1 台目 2 台・カメラあり）の記録の「試し始め」に書いてある
+    marks = run_of("p7")[2]["marks"]
+    said = {m["box"]: re.search(r"カメラ：(.+?)・(壊れ\S+?)・\[(\d+), (\d+)\] g", m["what"]) for m in marks if "試し始め" in m["what"]}
+    ans = [{"looks_like": said[f"box{i}"].group(1), "fragile": said[f"box{i}"].group(2) != "壊れにくい",
+            "weight_g": [said[f"box{i}"].group(3), said[f"box{i}"].group(4)]} for i in range(n)]
     specs = sb.random_boxes(n, seed=seed)
     x1, w1 = 15.6, 17.0
     fig_title(s, x1, 5.7, w1, "Gemini の答えと、本当の値")
@@ -214,17 +296,18 @@ def page_camera(prs, seed=22, n=6):
     labeled_frame(s, X0, 13.45, W, 1.95, "試し方",
                   ["①「壊れにくい」と答えた箱：τ 0.25 から 0.05 ずつ／それ以外とカメラなし：τ 0.2 から 0.025 ずつ",
                    "┗ 見た目どおりでない箱（1：金属に見えて強度 16 N）も、強度は触って測るので潰さない"], kind="fact", size=12)
-    conclusion(s, "試す回数 26 → 17 回、1 台目を 3 台から 2 台に減らしても 83.5 秒（3 台・カメラなしは 86.3 秒）", y=15.8)
+    (_, _, (t3, k3), _), (_, _, (t2, k2), _), (_, _, (tc, kc), _) = RESULTS
+    conclusion(s, f"1 台目 2 台で、試す回数 {k2} → {kc} 回、時間 {t2:.1f} → {tc:.1f} 秒（金属に見える箱を 1 回で決める）", y=15.8)
 
 
 def page_summary(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "10 まとめ｜コンセプト図",
+    chrome(s, "12 まとめ｜コンセプト図",
            ["見た目で予想 ⇒ 触って確かめる ⇒ 情報を渡す ⇒ 素早く運ぶ",
-            "重さに対して弱すぎる箱は運ばず、人の確認へ"], 10)
+            "重さに対して弱すぎる箱は運ばず、人の確認へ"], 12)
     fig_title(s, X0, 5.7, W, "見て予想し、触って確かめ、情報で素早く運ぶ")
     y, h = 7.2, 3.2
-    steps = [("カメラ", ["Gemini", "壊れにくさを予想"], "fact", 4.6),
+    steps = [("カメラ", ["箱の位置を測る", "Gemini が予想"], "fact", 4.6),
              ("1 台目", ["触って確かめる", "力加減・重さ・強度"], "new", 7.4),
              ("台座", ["箱と情報を", "渡す"], "fact", 4.6),
              ("2 台目", ["情報で 1 回で持つ", "重さに合わせて運ぶ"], "new", 7.4),
@@ -263,17 +346,20 @@ def page_summary(prs):
     e.append(e.makeelement(qn("a:prstDash"), {"val": "dash"}))
     e.append(e.makeelement(qn("a:tailEnd"), {"type": "triangle", "w": "med", "len": "med"}))
     # 結果（右下）
-    rows = [("1 台目 3 台・カメラなし", "86.3 秒／26 回"), ("1 台目 2 台・カメラなし", "92.2 秒／21 回"), ("1 台目 2 台・カメラあり", "83.5 秒／17 回")]
-    xr, wr, yr = 17.6, 15.0, 12.0
-    text(s, xr, yr - 0.1, wr, 0.6, "同じ 6 箱を終えるまでの時間／試した回数", size=10.5, bold=True, color=DARK)
+    rows = [(f"1 台目 {n}・カメラ{c}", f"{t:.1f} 秒 × {m} 台 ＝ {r0(robot_sec(t, m))} 台・秒") for n, c, (t, k), m in RESULTS]
+    xr, wr, yr = 15.6, 17.0, 12.0
+    text(s, xr, yr - 0.1, wr, 0.6, "同じ 6 箱を終えるまでの、ロボットの総稼働時間", size=10.5, bold=True, color=DARK)
     yr += 0.6
     for i, (k, v) in enumerate(rows):
         last = i == len(rows) - 1
-        text(s, xr, yr, 9.0, 0.75, k, size=12, bold=last, anchor=MSO_ANCHOR.MIDDLE)
-        text(s, xr + 9.0, yr, wr - 9.0, 0.75, v, size=12, bold=last, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, xr, yr, 6.8, 0.75, k, size=11.5, bold=last, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, xr + 6.8, yr, wr - 6.8, 0.75, v, size=11.5, bold=last, anchor=MSO_ANCHOR.MIDDLE, align=PP_ALIGN.RIGHT)
         hline(s, xr, yr + 0.75, wr, MID, 0.5)
         yr += 0.78
-    conclusion(s, "触って確かめるから潰さない。カメラで試す回数を減らし、1 台目を 3 台から 2 台に", y=15.8)
+    (t3, _), m3 = RESULTS[0][2], RESULTS[0][3]
+    (tc, _), mc = RESULTS[2][2], RESULTS[2][3]
+    cut = r0((1 - robot_sec(tc, mc) / robot_sec(t3, m3)) * 100)
+    conclusion(s, f"触って確かめるから潰さない。ロボットを 4 台から 3 台に減らし、総稼働時間を {cut}% 少なく", y=15.8)
 
 
 # ---------------------------------------------------------------- 映像を入れるページ
@@ -321,9 +407,9 @@ RX, RW = 18.4, 32.59 - 18.4            # 右の列
 
 def page_success(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "5 実施したい動作｜受け渡しの成功例",
+    chrome(s, "7 実施したい動作｜受け渡しの成功例",
            ["1 台目が箱を取って台座へ、2 台目が台座から取って大箱へ",
-            "箱 1 つ（段ボール 62 g）の成功例"], 5)
+            "箱 1 つ（段ボール 62 g）の成功例"], 7)
     fig_title(s, VX, 5.7, VW, "映像：成功例（約 2.1 倍速）")
     slot = video_slot(s, "p3", VX, 6.75, VW)
     labeled_frame(s, RX, 7.1, RW, 7.9, "動作の順", [""], kind="fact")
@@ -340,9 +426,9 @@ def page_success(prs):
 
 def page_issues(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "6 実施に向けた課題｜強度・重さ・摩擦",
+    chrome(s, "8 実施に向けた課題｜強度・重さ・摩擦",
            ["①強度：潰してしまう／②重さ：ゆるく掴むと落とす／③摩擦：同じ力でも滑る",
-            "どれも、見た目だけでは分からない"], 6)
+            "どれも、見た目だけでは分からない"], 8)
     cw, gap = 10.0, (W - 3 * 10.0) / 2
     cols = [("① 強度：潰す", "p4a", ["力いっぱい握る", "⇒ 挟む力 100 N、強度 7.5 N の箱が潰れる"]),
             ("② 重さ：落とす", "p4b", ["ぎりぎりの力で 250 g を持つ", "⇒ 速く運ぶと落ちる"]),
@@ -357,16 +443,15 @@ def page_issues(prs):
     add_video_slide(prs, slots)
 
 
-P5_ROWS = [("1", "4 回", "157 g（174）", "17 N（16）"),
-           ("2", "9 回", "165 g（214）", "60 N（59）"),
-           ("3", "1 回", "47 g（41）", "16 N（24）")]
+P5_ROWS = [(str(i + 1), f"{b['tries']} 回", f"{r0(b['m_hat'] * 1000)} g（{r0(b['mass'] * 1000)}）", f"{r0(b['strength_est'])} N（{r0(b['strength'])}）")
+           for i, b in enumerate(run_of("p5")[2]["boxes"])]
 
 
 def page_solution(prs, hl):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "7 解決に向けた対応｜1 台目が少しずつ試して把握する",
+    chrome(s, "9 解決に向けた対応｜1 台目が少しずつ試して把握する",
            ["1 台目がゆるい力から少しずつ試し、持ち上がる力・重さ・強度を測る",
-            "2 台目は受け取った情報で、試さずに 1 回で持つ（重さ・強度・摩擦はランダム）"], 7)
+            "2 台目は受け取った情報で、試さずに 1 回で持つ（重さ・強度・摩擦はランダム）"], 9)
     fig_title(s, VX, 5.7, VW, "映像：ランダムな箱 3 つ（約 2.9 倍速）")
     slot = video_slot(s, "p5", VX, 6.75, VW)
     fig_title(s, RX, 5.7, RW, "1 台目が測った値（カッコ内は本当の値）")
@@ -379,13 +464,16 @@ def page_solution(prs, hl):
 
 def page_apply(prs, aside):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "8 解決後の動作｜1 台目 3 台で情報を集める",
+    chrome(s, "10 解決後の動作｜1 台目 3 台で情報を集める",
            ["1 台目 3 台が触って情報を集め、台座へ置く",
-            "2 台目は情報で次々と大箱へ運ぶ（6 箱、重さ・強度・摩擦はランダム）"], 8)
+            "2 台目は情報で次々と大箱へ運ぶ（6 箱、重さ・強度・摩擦はランダム）"], 10)
     fig_title(s, VX, 5.7, VW, "映像：1 台目 3 台＋2 台目（約 3.3 倍速）")
     slot = video_slot(s, "p6", VX, 6.75, VW)
-    labeled_frame(s, RX, 7.1, RW, 3.0, "結果", ["6 箱を 86.3 秒で終える", "┗ 1 台目が試した回数の合計 26 回"], kind="fact")
-    labeled_frame(s, RX, 11.2, RW, 3.6, "弱すぎる箱", ["231 g・強度 9 N：潰さない力では運べない", "⇒ 運ばずに人の確認へ"],
+    sec, tries, d = run_of("p6")
+    weak = [b for b in d["boxes"] if not b.get("inside") and not b.get("crushed")]
+    labeled_frame(s, RX, 7.1, RW, 3.0, "結果", [f"6 箱を {sec:.1f} 秒で終える", f"┗ 1 台目が試した回数の合計 {tries} 回"], kind="fact")
+    labeled_frame(s, RX, 11.2, RW, 3.6, "弱すぎる箱", ["／".join(f"{r0(b['mass'] * 1000)} g・強度 {r0(b['strength'])} N" for b in weak) + "：潰さない力では運べない",
+                                                    "⇒ 運ばずに人の確認へ"],
                   kind="new" if aside else "issue")
     if aside:
         tag(s, RX + RW - 4.2, 10.82, "いまここ")
@@ -395,30 +483,35 @@ def page_apply(prs, aside):
 
 def page_camera_run(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "9 カメラ判定で早くする｜1 台目を 2 台に",
+    chrome(s, "11 カメラ判定で早くする｜1 台目を 2 台に",
            ["Gemini が「壊れにくい」と見た箱だけ、大きく刻んで試す",
-            "試す回数が減り、1 台目 2 台でも 3 台より早く終える"], 9)
+            f"ロボットの総稼働時間（台数 × 時間）で比べる：1 台目を 1 台減らしても、時間は {r0((RESULTS[2][2][0] / RESULTS[0][2][0] - 1) * 100)}% しか延びない"], 11)
     fig_title(s, VX, 5.7, VW, "映像：1 台目 2 台＋カメラ（約 3.2 倍速）")
     slot = video_slot(s, "p7", VX, 6.75, VW)
-    fig_title(s, RX, 5.7, RW, "同じ 6 箱を終えるまで")
-    rows = [("1", "3 台", "なし", "86.3 秒", "26 回"), ("2", "2 台", "なし", "92.2 秒", "21 回"), ("3", "2 台", "あり", "83.5 秒", "17 回")]
-    y = table(s, RX, 6.75, [1.4, 2.8, 2.8, 3.6, 3.59], ["", "1 台目", "カメラ", "時間", "試した回数"], rows, hl=2)
-    text(s, RX, y + 0.2, RW, 1.4, ["*1 組の箱（6 箱）を 1 回ずつ流した結果", "*同じ箱でも、掴む台や位置で持ち上がる力は変わる"], size=9.5, color=DARK)
-    conclusion(s, "見て予想し、触って確かめる ⇒ 1 台目を 3 台から 2 台に減らせる", y=15.8)
+    fig_title(s, RX, 5.7, RW, "同じ 6 箱の判断を終えるまで")
+    rows = [(str(i + 1), n, c, f"{t:.1f} 秒", f"{r0(robot_sec(t, m))} 台・秒") for i, (n, c, (t, k), m) in enumerate(RESULTS)]
+    y = table(s, RX, 6.75, [1.2, 2.4, 2.4, 3.3, 4.89], ["", "1 台目", "カメラ", "時間", "総稼働時間"], rows, hl=2)
+    text(s, RX, y + 0.2, RW, 2.0, ["*総稼働時間＝ロボットの台数（1 台目＋2 台目）× 時間",
+                                   "*1 組の箱（6 箱）を 1 回ずつ流した結果。運べない箱 1 つの判断（人の確認へ）を含む",
+                                   "*同じ箱でも、掴む台や位置で持ち上がる力は変わる"], size=9.5, color=DARK)
+    (t3, _), m3 = RESULTS[0][2], RESULTS[0][3]
+    (tc, _), mc = RESULTS[2][2], RESULTS[2][3]
+    conclusion(s, f"ロボット 4 台 → 3 台で、総稼働時間 {r0(robot_sec(t3, m3))} → {r0(robot_sec(tc, mc))} 台・秒"
+                  f"（{r0((1 - robot_sec(tc, mc) / robot_sec(t3, m3)) * 100)}% 少ない）", y=15.8)
     add_video_slide(prs, [slot])
 
 
 def page_env(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "3 開発環境｜活用した OSS・オープンなロボット・AI",
+    chrome(s, "4 開発環境｜活用した OSS・オープンなロボット・AI",
            ["シミュレータ・ロボットの形・計算の部品は OSS、目の AI は Gemini（API）",
-            "GPU も実機も使わず、Mac の CPU（Docker）で作品の全部を動かす"], 3)
+            "GPU も実機も使わず、Mac の CPU（Docker）で作品の全部を動かす"], 4)
     fig_title(s, X0, 5.7, W, "使ったもの（版・ライセンスは手元の実行環境で確認）")
-    rows = [("1", "物理シミュレータ", "Genesis 1.4.3", "剛体物理（接触・摩擦・関節）、IK、レンダリング（OSMesa）", "Apache-2.0"),
+    rows = [("1", "物理シミュレータ", "Genesis 1.4.3", "剛体物理（接触・摩擦・関節）、IK、カメラの描画（真上：RGB・深度、手首：RGB）", "Apache-2.0"),
             ("2", "ロボットモデル", "SO-101（SO-ARM100）", "MJCF。オープンハードウェアの 6 軸アーム＋グリッパ", "Apache-2.0"),
             ("3", "凸分解", "CoACD 1.0.14", "衝突形状の生成（グリッパの隙間を保持）", "MIT"),
-            ("4", "数値計算", "PyTorch 2.14／NumPy 2.5", "Genesis のテンソル演算、推定・校正の計算", "BSD-3"),
-            ("5", "VLM", "Gemini Robotics-ER 2", "画像 → 材質・重量・脆さ・確信度（JSON）、google-genai 2.29", "API（OSS 外）"),
+            ("4", "数値計算・画像処理", "PyTorch 2.14／NumPy 2.5／SciPy 1.18", "推定・校正の計算、深度画像から箱の位置・向き（ラベリング）", "BSD-3"),
+            ("5", "VLM", "Gemini Robotics-ER 2", "画像 → 箱の位置（点）・材質・重量・脆さ（JSON）、google-genai 2.29", "API（OSS 外）"),
             ("6", "動画処理・資料生成", "FFmpeg／python-pptx", "動画の切り出し・合成、スライド生成（LibreOffice でラスタ化）", "LGPL／MIT"),
             ]
     table(s, X0, 6.75, [1.4, 4.6, 7.4, 13.2, 4.72], ["", "区分", "名前（版）", "使い方", "ライセンス"], rows, row_h=1.0, size=11.5)
@@ -429,16 +522,16 @@ def page_env(prs):
 
 def page_system(prs):
     s = prs.slides.add_slide(prs.slide_layouts[6])
-    chrome(s, "4 システム構成｜見る・触る・渡す・運ぶ",
-           ["ロボットが読めるのは、自分の関節の角度とトルクだけ（力覚センサーなし）",
-            "①見て予想、②触って推定、③台座で渡す、④情報で運ぶ、の 4 つに分ける"], 4)
+    chrome(s, "5 システム構成｜見る・触る・渡す・運ぶ",
+           ["読むのは、カメラ 2 つ（固定・手首）と、自分の関節の角度とトルクだけ（力覚センサーなし）",
+            "①見て予想、②触って推定、③台座で渡す、④情報で運ぶ、の 4 つに分ける"], 5)
     fig_title(s, X0, 5.7, W, "部品とデータの流れ")
     # 上段：4 つの役割
     y, h = 7.1, 4.2
-    cols = [("① 見る", ["固定カメラ（作業台の", "斜め上）の画像 ⇒ Gemini", "⇒ 壊れにくいか"], "fact", 6.6),
-            ("② 触る：1 台目", ["試し掴み（ゆるい力から）", "読む：指の角度・肩の力", "⇒ 力加減・重さ・強度"], "new", 8.4),
-            ("③ 渡す：台座", ["箱と情報を置く", "使用中の札で", "2 台の腕を譲り合う"], "fact", 6.0),
-            ("④ 運ぶ：2 台目", ["情報で 1 回で持つ", "握る力：推定強度の 6 割まで", "重さに合わせた速さ"], "new", 8.4)]
+    cols = [("① 見る", ["固定カメラ（真上）", "深度 ⇒ 箱の位置・向き", "画像 ⇒ Gemini ⇒ 壊れにくいか"], "fact", 7.4),
+            ("② 触る：1 台目", ["試し掴み（ゆるい力から）", "指の角度・肩の力、手首カメラ", "⇒ 力加減・重さ・強度"], "new", 8.0),
+            ("③ 渡す：台座", ["箱と情報を置く", "使用中の札で", "2 台の腕を譲り合う"], "fact", 5.6),
+            ("④ 運ぶ：2 台目", ["固定カメラで箱を見て持つ", "握る力：推定強度の 6 割まで", "重さに合わせた速さ"], "new", 8.4)]
     gap = (W - sum(c[3] for c in cols)) / (len(cols) - 1)
     x = X0
     for i, (label, body, kind, w) in enumerate(cols):
@@ -454,9 +547,60 @@ def page_system(prs):
     rect(s, X0 + 5.0, yb, W - 5.0, 2.4, fill=WHITE, line=INK, lw=0.75,
          lines=["Genesis（剛体物理・IK・レンダリング）／SO-101 × 2〜4 台／潰れる箱（本体＋ばね関節の板）",
                 "Docker・Python 3.12・CPU のみ／各アームの手順を 1 step ずつ進め、4 台を同時に制御"], size=12)
-    text(s, X0, 14.55, W, 1.1, ["*SO-101 にカメラはない。① の画像は、シミュレータ内に置いた固定カメラで撮影",
-                                 "*箱の位置・向き（把持点）は、いまはシミュレータの真値で代用。実機では同じ固定カメラで測る想定"], size=9.5, color=DARK)
-    conclusion(s, "見て予想し、触って確かめ、情報で素早く運ぶ（センサーを足さず、関節の値だけで推定）", y=15.8)
+    text(s, X0, 14.55, W, 1.1, ["*固定カメラ：高さ 1.8 m の支柱から真下向き（RGB・深度）。手首カメラ：SO-101 公式の取り付け位置の 32 mm 角 UVC（RGB のみ）",
+                                 "*「持てた」の判断：持ち上げる前後で手首カメラの指のあいだの見た目が変わらず、肩の力が箱の重さの分だけ増えたとき"], size=9.5, color=DARK)
+    conclusion(s, "見て予想し、触って確かめ、情報で素早く運ぶ（力覚センサーを使わず、関節の値で推定）", y=15.8)
+
+
+def frame_label(s, x, y, t, size=11):
+    """枠の左上に重ねる、黒地に白抜きの名札"""
+    w = 0.7 + sum(0.21 if ord(c) < 128 else 0.4 for c in t) * size / 11
+    lab = rect(s, x + 0.3, y - 0.36, w, 0.72, fill=INK, line=None, lines=t, size=size, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    lab.text_frame.word_wrap = False
+
+
+def page_arch(prs):
+    """ソフトウェアの配置（どこで動き、何が流れるか）。自作のコードは太い破線、借りた部品は細い実線"""
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    chrome(s, "6 システム構成｜ソフトウェアの配置",
+           ["Mac の Docker コンテナの中で、Genesis（OSS）の上に自作のコードを載せる。GPU は使わない",
+            "外に出るのは Gemini への画像 1 枚だけ（答えは保存し、2 回目からは読むだけ）"], 6)
+    # Mac ⊃ Docker コンテナ
+    rect(s, X0, 6.0, 24.2, 9.4, fill=WHITE, line=INK, lw=1.0)
+    frame_label(s, X0, 6.0, "Mac（Apple シリコン）")
+    rect(s, X0 + 0.45, 7.05, 23.3, 8.0, fill=LIGHT, line=INK, lw=0.75)
+    frame_label(s, X0 + 0.45, 7.05, "Docker コンテナ（Python 3.12・CPU のみ・OSMesa で描画）")
+    # 左：Genesis（OSS）
+    gx, gy, gw, gh = X0 + 0.95, 8.15, 7.2, 6.5
+    rect(s, gx, gy, gw, gh, fill=WHITE, line=INK, lw=0.75)
+    frame_label(s, gx, gy, "Genesis 1.4.3（OSS）")
+    for i, t in enumerate(["剛体物理（接触・摩擦・関節）", "逆運動学（IK）", "カメラ 2 つ（真上・手首）", "SO-101 × 2〜4 台（MJCF）"]):
+        rect(s, gx + 0.4, gy + 0.65 + i * 1.42, gw - 0.8, 1.2, fill=WHITE, line=MID, lw=0.75, lines=t, size=11.5, align=PP_ALIGN.CENTER)
+    # 右：自作のコード
+    cx, cy, cw, ch = X0 + 12.2, 8.15, 11.05, 6.5
+    rect(s, cx, cy, cw, ch, fill=WHITE, line=INK, lw=2.25, dash="dash")
+    frame_label(s, cx, cy, "自作のコード")
+    mine = [("soft_line.py", "手順：1 台目が測り、2 台目が運ぶ"), ("so101.py", "手先の動き（S 字）・握る力の上限"),
+            ("vision.py", "カメラ 2 つ ⇒ 箱の位置・向き"), ("softbox.py", "潰れる箱（ばね付きの板）")]
+    for i, (name, what) in enumerate(mine):
+        y = cy + 0.65 + i * 1.42
+        rect(s, cx + 0.4, y, cw - 0.8, 1.2, fill=WHITE, line=MID, lw=0.75)
+        text(s, cx + 0.5, y, 3.3, 1.2, name, size=11.5, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, cx + 3.7, y, cw - 4.2, 1.2, what, size=11, anchor=MSO_ANCHOR.MIDDLE)
+    # Genesis ⇔ 自作のコード
+    ax0, ax1 = gx + gw + 0.1, cx - 0.1
+    arrow(s, ax1, 10.0, ax0, 10.0)
+    text(s, ax0, 8.7, ax1 - ax0, 1.2, ["関節の目標", "握る力の上限"], size=10, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.BOTTOM)
+    arrow(s, ax0, 12.4, ax1, 12.4)
+    text(s, ax0, 12.5, ax1 - ax0, 1.8, ["関節の角度・トルク", "画像・深度"], size=10, align=PP_ALIGN.CENTER)
+    # 外：Gemini
+    mx, mw = X0 + 25.5, W - 25.5
+    rect(s, mx, 8.15, mw, 2.4, fill=WHITE, line=INK, lw=0.75, lines=["Gemini", "Robotics-ER 2", "（Google の API）"], size=11.5,
+         bold=True, align=PP_ALIGN.CENTER)
+    arrow(s, cx + cw + 0.05, 8.9, mx - 0.05, 8.9)
+    arrow(s, mx - 0.05, 10.0, cx + cw + 0.05, 10.0)
+    text(s, mx, 10.75, mw, 3.6, ["送る：画像（PNG）", "返る：JSON", "（箱の点・材質・壊れやすさ）"], size=10, color=DARK)
+    conclusion(s, "物理と描画は OSS（Genesis）、手順と推定は自作。判断に使うのはカメラと関節の値だけ", y=15.8)
 
 
 if __name__ == "__main__":
@@ -464,9 +608,11 @@ if __name__ == "__main__":
     prs = Presentation()
     prs.slide_width, prs.slide_height = Cm(33.867), Cm(19.05)
     order = []
+    page_real(prs); order.append("real")
     page_concepts(prs); order.append("concepts")
     page_env(prs); order.append("env")
     page_system(prs); order.append("system")
+    page_arch(prs); order.append("arch")
     page_success(prs); order.append("p3")
     page_issues(prs); order.append("p4")
     for hl in range(3):

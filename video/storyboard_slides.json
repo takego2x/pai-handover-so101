@@ -5,6 +5,10 @@
   "sec": 2.96
  },
  {
+  "page": "real",
+  "sec": 10
+ },
+ {
   "page": "concepts",
   "sec": 8
  },
@@ -14,6 +18,10 @@
  },
  {
   "page": "system",
+  "sec": 10
+ },
+ {
+  "page": "arch",
   "sec": 10
  },
  {
@@ -44,7 +52,7 @@
  },
  {
   "page": "p5_0",
-  "sec": 10.024,
+  "sec": 6.136,
   "videos": {
    "p5": {
     "clip": "outputs/video2/p5_one.mp4",
@@ -55,44 +63,44 @@
  },
  {
   "page": "p5_1",
-  "sec": 17.531,
+  "sec": 13.058,
   "videos": {
    "p5": {
     "clip": "outputs/video2/p5_one.mp4",
-    "start": 29.47,
+    "start": 18.04,
     "speed": 2.94
    }
   }
  },
  {
   "page": "p5_2",
-  "sec": 8.466,
+  "sec": 9.932,
   "videos": {
    "p5": {
     "clip": "outputs/video2/p5_one.mp4",
-    "start": 81.01,
+    "start": 56.43,
     "speed": 2.94
    }
   }
  },
  {
   "page": "p6_0",
-  "sec": 25.229,
+  "sec": 11.355,
   "videos": {
    "p6": {
     "clip": "outputs/video2/p6_over.mp4",
-    "start": 0,
+    "start": 0.0,
     "speed": 3.32
    }
   }
  },
  {
   "page": "p6_1",
-  "sec": 0.759,
+  "sec": 14.81,
   "videos": {
    "p6": {
     "clip": "outputs/video2/p6_over.mp4",
-    "start": 83.76,
+    "start": 37.7,
     "speed": 3.32
    }
   }
@@ -103,11 +111,11 @@
  },
  {
   "page": "p7",
-  "sec": 26.012,
+  "sec": 28.33,
   "videos": {
    "p7": {
     "clip": "outputs/video2/p7_over.mp4",
-    "start": 0,
+    "start": 0.0,
     "speed": 3.21
    }
   }

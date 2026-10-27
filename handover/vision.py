@@ -85,30 +85,98 @@ def nearest(cands, xy, max_d=0.05):
     return cands[i] if d[i] <= max_d else None
 
 
-# ---- ハンドカメラ（手首の中央に付け、指のあいだを見る） ----
-HAND_OFFSET = (0.0, 0.0, -0.035)      # グリッパの部品の原点から指先の方向へ 3.5 cm（指のあいだの真上）。横に付けると床しか写らない
+def add_top_camera_rig(sc, center=(0.0, 0.0), height=1.2, pole_xy=(0.75, 0.0)):
+    """真上のカメラの見た目（支柱・腕・本体）。見た目だけで、ぶつからない（collision=False）。build の前に呼ぶ。
+    支柱は真上のカメラの写る範囲（床で 1.3 m 角）の外に立て、腕と本体はカメラより上に置く（カメラの画像に写らない）"""
+    gray, dark = (0.55, 0.56, 0.58), (0.12, 0.12, 0.13)
+    px, py = pole_xy
+    cx, cy = center
+    top = height + 0.08
+    box = lambda size, pos, color: sc.add_entity(s_gs().morphs.Box(size=size, pos=pos, fixed=True, collision=False),
+                                                surface=s_gs().surfaces.Default(color=color))
+    box((0.04, 0.04, top), (px, py, top / 2), gray)                                         # 支柱
+    L = math.hypot(cx - px, cy - py)
+    ang = math.atan2(cy - py, cx - px)
+    sc.add_entity(s_gs().morphs.Box(size=(L, 0.03, 0.03), pos=((px + cx) / 2, (py + cy) / 2, top), euler=(0, 0, math.degrees(ang)),
+                                    fixed=True, collision=False), surface=s_gs().surfaces.Default(color=gray))  # 腕
+    box((0.10, 0.08, 0.05), (cx, cy, height + 0.035), dark)                                 # 本体（下の面がカメラより 1 cm 上）
 
 
-def add_hand_camera(sc, res=(160, 120), fov=70):
+def s_gs():
+    import genesis as gs
+    return gs
+
+
+# ---- 手首のカメラ（公式モデル so101_new_calib_camera.xml の取り付け位置。SO-ARM100 a758567） ----
+# 公式の部品 wrist_camera は 32 mm 角の UVC カメラ。手を真下に向けたとき、指先の方を向くのは部品の +z
+# （実測：指先への向きと cos 0.981、handover/spikes/wrist_camera.py）。指先から 10.5 cm 上・横に 7 cm の所から、
+# 斜めに指のあいだを見下ろす。前は手首のモーターの内側（グリッパの中央）に付けていたが、実機ではそこに付けられない
+CAMERA_MODEL = "so101_new_calib_camera.xml"
+WRIST_LENS = (0.0, 0.0, 0.0275)        # 部品の +z の面（0.0263）の少し前
+# 箱が写る範囲（画像の縦・横の割合）。閉じた指のあいだの箱は、いつもここに写る（グリッパに対して箱の位置が決まっているため）
+BOX_ROI = (0.583, 0.75, 0.47, 0.625)
+
+
+def camera_model(base_model):
+    """SO-101 のモデルのパスから、同じフォルダの公式のカメラ付きモデルのパス"""
+    from pathlib import Path
+    return str(Path(base_model).with_name(CAMERA_MODEL))
+
+
+def add_hand_camera(sc, res=(320, 240), fov=70):
     """build の前に作る。手前の限界 near は 5 mm（既定の 10 cm では、手を下ろすと箱も床も描かれなかった）"""
     return sc.add_camera(res=res, fov=fov, near=0.005, GUI=False)
 
 
-def attach_hand(cam, link):
-    """build の後に、グリッパの部品へ取り付ける"""
-    T = np.eye(4)
-    T[:3, 3] = HAND_OFFSET
-    cam.attach(link, T)
+def attach_hand(cam, ent):
+    """build の後に、腕（カメラ付きモデル）の wrist_camera の部品へ取り付ける。
+    Genesis のカメラは自分の −z を見るので、x 軸のまわりに 180° 回す（カメラの −z ＝ 部品の +z）"""
+    T = np.diag([1.0, -1.0, -1.0, 1.0])
+    T[:3, 3] = WRIST_LENS
+    cam.attach(ent.get_link("wrist_camera"), T)
     return cam
 
 
-def hand_depth(cam):
-    """指のあいだ（画像の中央 16×16 画素）までの距離の中央値 [m]。箱を挟んでいれば箱の上の面、なければ床"""
-    cam.move_to_attach()
-    _, depth, _, _ = cam.render(rgb=False, depth=True)
-    d = np.asarray(depth)
-    h, w = d.shape
-    return float(np.median(d[h // 2 - 8:h // 2 + 8, w // 2 - 8:w // 2 + 8]))
+def hand_roi(cam):
+    """手首のカメラの色の画像のうち、指のあいだの箱が写る範囲（float の配列）。実機の手首カメラ（UVC）には深度がないので、色だけを使う"""
+    return roi_of(hand_rgb(cam))
+
+
+def roi_of(img):
+    h, w = img.shape[:2]
+    r0, r1, c0, c1 = BOX_ROI
+    return img[int(r0 * h):int(r1 * h), int(c0 * w):int(c1 * w)].astype(float)
+
+
+SHIFT_BOX = (0.40, 0.90, 0.36, 0.74)    # 箱の輪郭を含む範囲（縦・横の割合）。箱が画像の中で何画素ずれたかを探す範囲
+
+
+def box_shift(before, after, max_dy=24, max_dx=8):
+    """持ち上げる前後の手首の画像で、箱が何画素ずれたか (dy, dx, その位置での平均の差)。
+    ロボットの色（黄・黒）は手と一緒に動くので比べない。箱が手と一緒に上がれば (0, 0)、滑れば滑った分だけ dy が正（下へ）"""
+    h, w = before.shape[:2]
+    r0, r1, c0, c1 = (int(SHIFT_BOX[0] * h), int(SHIFT_BOX[1] * h), int(SHIFT_BOX[2] * w), int(SHIFT_BOX[3] * w))
+    rgb = before.astype(int)
+    robot = ((rgb[..., 0] > 140) & (rgb[..., 1] > 110) & (rgb[..., 2] < 90)) | ((rgb[..., 0] < 45) & (rgb[..., 1] < 45) & (rgb[..., 2] < 45))
+    g0, g1 = before.mean(axis=2), after.mean(axis=2)
+    tpl, keep = g0[r0:r1, c0:c1], ~robot[r0:r1, c0:c1]
+    best = None
+    for dy in range(-max_dy, max_dy + 1):
+        for dx in range(-max_dx, max_dx + 1):
+            if r0 + dy < 0 or r1 + dy > h or c0 + dx < 0 or c1 + dx > w:
+                continue
+            d = np.abs(g1[r0 + dy:r1 + dy, c0 + dx:c1 + dx] - tpl)[keep].mean()
+            if best is None or d < best[2]:
+                best = (dy, dx, float(d))
+    return best
+
+
+def same_view(a, b):
+    """2 枚の範囲の見た目の近さ：(正規化相互相関 NCC、平均の差 MAD)。箱が手と一緒に動けば、同じ場所に同じように写る。
+    実測（handover/spikes/wrist_rgb.py、段ボール・発泡・金属、床）：持てた NCC 0.93〜0.97・MAD 4〜5／持てない NCC 0.11〜0.76・MAD 27〜49"""
+    x, y = a.mean(axis=2).ravel(), b.mean(axis=2).ravel()
+    x, y = x - x.mean(), y - y.mean()
+    return float(x @ y / (np.linalg.norm(x) * np.linalg.norm(y) + 1e-9)), float(np.abs(a - b).mean())
 
 
 def hand_rgb(cam):
