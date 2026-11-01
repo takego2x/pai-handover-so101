@@ -11,3 +11,6 @@ lesson/nodes_dora/out/
 
 # 退かした旧構成の dora の実行ログ（Mac で直接動かしたログにはホームのパスが入る）
 legacy/dora/out/
+
+# 各人の記憶（agent-memory）は追跡しない
+.claude/agent-memory/
