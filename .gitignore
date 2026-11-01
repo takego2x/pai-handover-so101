@@ -7,7 +7,6 @@ outputs/
 dora/out/
 
 # dora の実行ログ（ノードごとのログ。毎回作り直す）
-lesson/nodes_dora/out/
 
 # 退かした旧構成の dora の実行ログ（Mac で直接動かしたログにはホームのパスが入る）
 legacy/dora/out/

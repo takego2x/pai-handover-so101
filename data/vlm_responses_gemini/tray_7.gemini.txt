@@ -1,9 +1,0 @@
-```json
-[
-  {"point": [354, 385], "label": "black rectangular block, matte", "candidates": ["POM", "ABS", "NBR"]},
-  {"point": [338, 606], "label": "gray cylinder, matte", "candidates": ["steel", "aluminium"]},
-  {"point": [663, 293], "label": "light gray cylinder, shiny", "candidates": ["aluminium", "steel"]},
-  {"point": [677, 514], "label": "white rectangular block, matte", "candidates": ["POM", "ABS"]},
-  {"point": [654, 726], "label": "black square block, matte", "candidates": ["POM", "ABS", "NBR"]}
-]
-```
