@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# report/report.html を PDF にする（Brave / Chrome の画面なし印刷）。使い方: scripts/make_pdf.sh <omnicampusアカウント名>
+# report/説明資料_PAI最終課題.md を HTML 経由で PDF にする（Brave / Chrome の画面なし印刷）。使い方: scripts/make_pdf.sh <omnicampusアカウント名>
 set -euo pipefail
 NAME="${1:?omnicampus のアカウント名を渡してください}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,6 +9,8 @@ for B in "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" "/Applic
 done
 [ -n "${BROWSER:-}" ] || { echo "Brave / Chrome が見つかりません" >&2; exit 1; }
 mkdir -p "$ROOT/outputs"
+# md → report/report.html（URL は環境変数 YOUTUBE_URL・GITHUB_URL）
+uv run -q --no-project --python 3.12 --with markdown==3.8 python "$ROOT/report/build_html.py" "$NAME"
 "$BROWSER" --headless=new --disable-gpu --no-pdf-header-footer --print-to-pdf="$OUT" "file://$ROOT/report/report.html" 2>/dev/null
 # 出口で実測：ファイルがあり、ページ数が取れること
 test -s "$OUT" || { echo "PDF が作られませんでした" >&2; exit 1; }

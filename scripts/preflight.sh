@@ -51,6 +51,7 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   esac
   # 未 commit のファイルも含める（.gitignore 済みの .venv / third_party / outputs は除く）
   n=$(git ls-files --cached --others --exclude-standard | grep -c .)
+  # 探す言葉（氏名・所属など）は環境変数 PRIVATE_WORDS に | 区切りで渡す。言葉そのものはリポジトリに書かない
   hits=$(git grep --untracked -n -i -E "${PRIVATE_WORDS:-@gmail}" -- . ':!scripts/preflight.sh' 2>/dev/null | head -5)
   if [ "$n" -eq 0 ]; then
     fail "検査するファイルが 0 件" "リポジトリの場所が正しいか確認する"

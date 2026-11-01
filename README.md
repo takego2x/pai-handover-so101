@@ -1,49 +1,106 @@
-# 見て・触って測り、学習した方策で運ぶ ― 材質の分からない部品を、小さい力で傷めずに
+# 見た目で分からない箱を、触って確かめてから受け渡す 2 台の SO-101
 
-松尾研 Physical AI 応用編1 最終課題。動画：（YouTube の URL）
+松尾研 Physical AI 応用編1 最終課題。
+
+- 動画（YouTube）：（URL）
 
 ## 概要
-材質の分からない部品が次々に来るラインを、シミュレータ（Genesis）の中に作った。
-- **第一層（アーム 3 台）**：部品を **見て**（AI 1：VLM が材質の候補を挙げ、試す範囲を狭める）、**触って**（握る力を変えて何度か持ち上げを試し、落としてもよい）、重さ・摩擦係数 μ・保持に要る力を測る
-- **第二層（アーム 1 台）**：受け取った重さと μ を、**学習した方策**（AI 2：シミュレータの中で CEM により学習）が「握る力・加速度・指の向き」に変え、弧を描いて一発で運ぶ
-- 第一層と第二層は、ノードに分けてメッセージでつなぐ（dora-rs 版と ROS 2 Jazzy 版の両方）
+物理シミュレータ Genesis の中で、ロボットアーム SO-101 を役割の違う 2 種類に分けた。
 
-| 結果 | 値 |
-|---|---|
-| 握る力（データあり／データなし） | 中央値 3.5N ／ 全部品 60N（60 部品） |
-| 学習した方策（学習に使わない 90 部品） | 90/90 運ぶ（式の方策 90/90）。握る力は式より約 25% 小さい。代わりに時間が 12% 長い |
-| 学習した方策が見つけた持ち方 | 指を接線の向き（85°）に閉じる。人が原因を切り分けて見つけた対策と同じ。範囲の端の助けなし |
-| 見て絞る（VLM）の効果 | 試し掴み 7.0 → 6.5 回（材質が分かっても μ のばらつきは大きい） |
+- **1 台目（触って確かめる）**：ゆるい力から少しずつ強めて箱を試し掴みし、持ち上がる力（力加減）・重さ・強度を、自分の関節の角度とトルクから測る。測った情報を付けて、箱を台座に置く
+- **2 台目（情報で運ぶ）**：受け取った情報で、試さずに 1 回で箱を持ち、大箱へ運ぶ
+- **カメラ**：真上の固定カメラの画像を Gemini Robotics-ER 2 に見せ、「壊れにくい」と見た箱だけ、試し掴みの刻みを大きくする
+
+箱は 3 cm 角で、重さ（30〜250 g）・摩擦（0.6〜1.0）・強度（7.5〜60 N）が箱ごとにランダムで、見た目からは分からない。力覚センサーは使わず、判断に使うのはカメラ 2 つ（真上・手首）の画像と、ロボット自身の関節の値だけ。シミュレータの箱の座標は、答え合わせにだけ使う。
+
+## 結果
+同じ 6 箱（seed 278）を 3 つの構成で処理した。
+
+| 1 台目 | カメラ | 時間 | 試した回数 | 総稼働時間（台数 × 時間） |
+|---|---|---|---|---|
+| 3 台 | なし | 111.6 秒 | 13 回 | 446 台・秒 |
+| 2 台 | なし | 107.0 秒 | 11 回 | 321 台・秒 |
+| 2 台 | あり | 105.1 秒 | 8 回 | 315 台・秒 |
+
+- 3 つの構成とも、6 箱すべてを潰さず・落とさずに大箱へ入れた
+- 1 台目を 3 台から 2 台に減らしてカメラを加えると、総稼働時間は 29% 少ない
+- 1 組の箱を 1 回ずつ流した結果。3 台の構成には、台座の取り合いを待つ時間が含まれる
 
 ## 再現手順（Docker、Apple シリコンの Mac で確認）
-```bash
-docker compose build
-docker compose run --rm sim python lesson/hold.py              # 保持の条件（理論と 24/24）
-docker compose run --rm sim python lesson/trials.py            # 試し掴みで重さ・μ
-docker compose run --rm sim python lesson/policy.py eval       # 学習した方策と式の方策の比較
-docker compose run --rm sim python lesson/report.py           # 図と表（約 7 分）
-docker compose run --rm sim bash -c "cd lesson/nodes_dora && dora run dataflow.yml"           # dora 版
-docker compose --profile ros2 build ros2 && docker compose --profile ros2 run --rm ros2 bash lesson/nodes_ros2/run.sh 5   # ROS 2 版
-docker compose run --rm sim python -m pytest -q tests          # テスト（CI と同じ）
+
+SO-101 のモデル（Apache-2.0）はこのリポジトリに含めていない。同じ版を取ってくる。
+
 ```
-L0〜L9 の手順と、作者の失敗の記録・わざと失敗の再現は、教材にまとめてある。
+git clone https://github.com/TheRobotStudio/SO-ARM100.git third_party/SO-ARM100
+```
+
+```
+git -C third_party/SO-ARM100 checkout a758567
+```
+
+シミュレータの環境（Genesis 1.4.3、CPU）を作る。
+
+```
+docker compose build sim
+```
+
+1 台目 3 台・カメラなし（1 台あたり 2 箱、計 6 箱）。1 回 2〜3 分。
+
+```
+docker compose run --rm sim python handover/soft_line.py --first 3 --per 2 --seed 278
+```
+
+1 台目 2 台・カメラなし（同じ 6 箱）。
+
+```
+docker compose run --rm sim python handover/soft_line.py --first 2 --total 6 --seed 278
+```
+
+1 台目 2 台・カメラあり。Gemini の答えは `handover/data/top_first2_n6_seed278.gemini.txt` に保存してあり、API キーなしでこれを使う。保存の無い箱の組で `--camera` を付けると、リポジトリ直下の `.env` に `GEMINI_API_KEY=...` が要る。
+
+```
+docker compose run --rm sim python handover/soft_line.py --first 2 --total 6 --seed 278 --camera
+```
+
+最後に箱ごとの表（本当の重さと測った重さ、本当の強度と推定、力加減、試した回数、結果）と、かかった時間（`steps ... (105.1 s)`）が出る。
+
+録画するときは `--record outputs/video2/p7.mp4 --cam over` を足す。長い録画では `-e NO_HAND=1` を付けて手首カメラの映像を保存しない（描画が止まることがあった）。試し掴みの中身を見るときは `-e SOFT_DEBUG=1` を付ける。
 
 ## 構成
 | 場所 | 中身 |
 |---|---|
-| `lesson/` | 教材の本体（L1〜L9）。`policy.py` は運ぶ方策の学習、`nodes_dora/` と `nodes_ros2/` はノードのつなぎ方 |
-| `data/` | μ の文献値の表と出典、Gemini の材質の候補（保存済み）、学習済みの方策の係数 |
-| `sim/` | 手順書の S1〜S7・S11 の部品（箱を落とす、IK、μ の掃引、トレイの画像、Gemini の呼び出し、くちばし） |
-| `spikes/` `verify/` | 試作と検証の再現 |
-| `legacy/` | 10/11 の旧構成（戦略 A/B/C）の部品。動かない（`legacy/README.md`） |
+| `handover/soft_line.py` | 本体。1 台目・2 台目の手順、試し掴み、重さと強度の測定、台座の排他（札） |
+| `handover/so101.py` | SO-101 を手先の位置で動かす部品（逆運動学、S 字の動き） |
+| `handover/softbox.py` | 潰れる箱（ばね付きの板。押す力が強度を超えると沈みきる） |
+| `handover/vision.py` | 真上の固定カメラで箱の位置と向きを出す、手首カメラの画像の比較 |
+| `handover/soft_demo.py` | 課題を見せる 3 場面（潰す・落とす・滑る） |
+| `handover/data/` | 真上のカメラの画像と、Gemini の答え（保存済み） |
+| `handover/spikes/` | 試作（手首カメラの位置、校正、Gemini への問い方など） |
+| `video/` | 提出動画のスライドと組み立て（`make_slides_take.py` → `render_pages.sh` → `board_from_runs.py` → `compose_slides.py`） |
+| `report/` | 説明資料の原稿 |
+
+次は前のテーマ（部品の摩擦係数 μ を測って運ぶ作品）の物で、この作品では使っていない：`lesson/`、`colab/`、`sim/`（Gemini の呼び出し `sim/vlm_material.py` だけは使う）、`spikes/`、`verify/`、`data/`、`legacy/`、`tests/`、`Dockerfile.ros2`、`handover/line.py`・`line3.py`・`run.py`。ROS 2 と dora-rs の部品はここにあり、この作品では使っていない。
+
+動画の組み立てに使った表紙の映像と写真（`video/assets/`、`outputs/video2/real_returns.png`）は含めていない。
 
 ## 限界
-シミュレータで示せるのは握る力の N 数まで（力と傷の関係は示していない）。μ は押す力で変わらない。学習と評価で方策に入れる μ は、正解に測定の誤差の幅をまねた乱数を掛けた値。VLM の候補は、部品の正解の材質で過去の応答を割り当てている。
+- 1 組の箱を 1 回ずつ流した結果。別の箱の組では、運ぶ途中で落とす箱や、人の確認に回す箱が出る
+- 箱を 12 個に増やすと、1 台目が詰まり、1 台目を減らす利点は消えた
+- Gemini の答えは同じ画像でも毎回変わり、重さの予想は大きく外れる（金属 160〜240 g を 15〜60 g）。重さは触って測る
+- シミュレータの中だけで確かめた。実機の SO-101 では試していない
 
-## データと出典
-μ の文献値は `data/friction_literature.csv`、出典は `data/SOURCES.md`。原文で値を確かめたもの（`verified=yes`）だけを使う。
+## 使ったもの
+| 区分 | 名前（版） | ライセンス |
+|---|---|---|
+| 物理シミュレータ | Genesis 1.4.3 | Apache-2.0 |
+| ロボットモデル | SO-101（TheRobotStudio/SO-ARM100、a758567） | Apache-2.0 |
+| VLM | Gemini Robotics-ER 2（google-genai 2.29） | API |
+| 数値計算・画像処理 | PyTorch／NumPy／SciPy | BSD-3 |
+| 動画・資料 | FFmpeg／python-pptx／LibreOffice | LGPL／MIT／MPL-2.0 |
 
 ## ライセンス
-- このリポジトリのコード：Apache License 2.0（`LICENSE`）
-- Microduck のモデル：[pollen-robotics/microduck_rl](https://github.com/pollen-robotics/microduck_rl)。モデル記述（`.xml`）は Apache-2.0、3D 形状ファイル（`.stl`）は CC BY-NC-SA 4.0（© Pollen Robotics）。形状ファイルはこのリポジトリに含めず、`scripts/fetch_microduck_assets.sh` で固定版から取得する。くちばしの試験台では、頭部の部品のうち下あごを切り出して関節を足している（改変）
-- Franka Emika Panda のモデルは Genesis に同梱のものを使用
+このリポジトリのコード：Apache License 2.0（`LICENSE`）。
+
+前のテーマで使った Microduck のモデル（[pollen-robotics/microduck_rl](https://github.com/pollen-robotics/microduck_rl)）は、モデル記述（`.xml`）が Apache-2.0、3D 形状ファイル（`.stl`）が CC BY-NC-SA 4.0（© Pollen Robotics）。形状ファイルはこのリポジトリに含めず、`scripts/fetch_microduck_assets.sh` で取得する。
+
+コード・スライド・説明資料の作成に、AI のコーディング支援（Claude Code）を使った。

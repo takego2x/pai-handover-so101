@@ -5,24 +5,28 @@
   "sec": 2.96
  },
  {
-  "page": "real",
-  "sec": 10
+  "page": "guide",
+  "sec": 7
  },
  {
-  "page": "concepts",
+  "page": "real",
   "sec": 8
  },
  {
+  "page": "concepts",
+  "sec": 7
+ },
+ {
   "page": "env",
-  "sec": 10
+  "sec": 9
  },
  {
   "page": "system",
-  "sec": 10
+  "sec": 9
  },
  {
   "page": "arch",
-  "sec": 10
+  "sec": 9
  },
  {
   "page": "p3",
@@ -96,7 +100,7 @@
  },
  {
   "page": "camera",
-  "sec": 8
+  "sec": 7
  },
  {
   "page": "p7",
@@ -111,6 +115,22 @@
  },
  {
   "page": "summary",
-  "sec": 9
+  "sec": 7
+ },
+ {
+  "page": "ai_try",
+  "sec": 10,
+  "videos": {
+   "p8": {
+    "clip": "outputs/video2/p8_over.mp4",
+    "start": 30.0,
+    "speed": 3.0
+   },
+   "p9": {
+    "clip": "outputs/smolvla/try.mp4",
+    "start": 0.0,
+    "speed": 1.0
+   }
+  }
  }
 ]

@@ -600,11 +600,60 @@ def page_arch(prs):
     conclusion(s, "物理と描画は OSS（Genesis）、手順と推定は自作。判断に使うのはカメラと関節の値だけ", y=15.8)
 
 
+def page_ai_try(prs):
+    """最後のページ：動作の AI 化を試したが、失敗した（v11 で追加）"""
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    chrome(s, "13 動作の AI 化への挑戦｜トライしたが失敗した",
+           ["①運び方（握る力・速さ）を学習した方策で決める／②VLA（SmolVLA）に動作そのものを任せる",
+            "どちらも、作品の動作には採用できなかった"], 13)
+    cw = 13.4
+    gap = W - 2 * cw
+    cols = [("① 学習した運び方（約 3 倍速）", "p8", ["試行 482 回の記録から、成功を予測して運び方を選ぶ",
+                                               "⇒ 運ぶ時間は 1/3〜1/5。だが 2 台目が運ぶ途中で落とした"]),
+            ("② SmolVLA（微調整なし、等速）", "p9", ["カメラ 3 つの画像と指示「箱を大箱へ」を入力",
+                                              "⇒ 腕は高い所を動くだけで、箱に近づかない"])]
+    slots = []
+    for i, (title, name, body) in enumerate(cols):
+        x = X0 + i * (cw + gap)
+        fig_title(s, x, 5.5, cw, title)
+        slots.append(video_slot(s, name, x, 6.5, cw))
+        rect(s, x, 14.2 - 0.05, cw, 1.45, fill=WHITE, line=INK, lw=0.75, dash="lgDash", lines=body, size=11)
+    conclusion(s, "原因は、学習した場面・データと本番の場面のずれ ⇒ 本番と同じ場面の手本で学習し直すのが次の課題", y=16.0)
+    add_video_slide(prs, slots)
+
+
+GUIDE = [("p3", 7, "受け渡しの成功例"), ("p4", 8, "課題（3 つを並べて等速）"), ("p5_", 9, "解決（3 ページ）"),
+         ("p6", 10, "1 台目 3 台"), ("p7", 11, "1 台目 2 台＋カメラ"), ("ai_try", 13, "AI 化の失敗（左の映像）")]
+
+
+def page_guide(prs):
+    """表紙の次：動画の見方（ロボットの映像の長さと倍速）。数字は絵コンテ video/storyboard_slides.json から計算する"""
+    board = json.loads((ROOT / "video" / "storyboard_slides.json").read_text())
+    total = sum(seg["sec"] for seg in board)
+    rows, shown, real = [], 0.0, 0.0
+    for key, no, label in GUIDE:
+        segs = [seg for seg in board if seg.get("page", "").startswith(key)]
+        sec = sum(seg["sec"] for seg in segs)
+        sp = max(float(v.get("speed", 1)) for v in segs[0]["videos"].values())
+        r = sum(seg["sec"] * max(float(v.get("speed", 1)) for v in seg["videos"].values()) for seg in segs)
+        shown, real = shown + sec, real + r
+        rows.append((no, label, f"{sec:.0f} 秒", "等速" if sp == 1 else f"約 {sp:.1f} 倍", f"{r:.0f} 秒"))
+    rows.append(("計", "ロボットの映像", f"{shown:.0f} 秒", f"平均 約 {real / shown:.1f} 倍", f"{real:.0f} 秒"))
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    chrome(s, "1 この動画の見方｜ロボットの映像の長さと倍速",
+           [f"動画 {total:.0f} 秒のうち、ロボットの映像は {shown:.0f} 秒（シミュレータの中の時間で {real:.0f} 秒分を倍速で詰めた）",
+            "動画は 3 分以内の決まりのため、ロボットの映像は倍速にした。倍速は、各ページの映像の見出しにも書いた"], 1)
+    fig_title(s, X0, 5.6, W, "映像のあるページ")
+    table(s, X0, 6.7, [2.0, 11.32, 5.0, 6.0, 7.0], ["ページ", "場面", "動画での長さ", "倍速", "等速に戻すと"], rows, row_h=0.92, size=12)
+    conclusion(s, "映像はすべて Genesis のシミュレーション。同じページに並べた映像は同時に流れる（1 本だけ数えた）", y=15.8)
+
+
 if __name__ == "__main__":
     import json as _json
     prs = Presentation()
     prs.slide_width, prs.slide_height = Cm(33.867), Cm(19.05)
     order = []
+    page_guide(prs); order.append("guide")
     page_real(prs); order.append("real")
     page_concepts(prs); order.append("concepts")
     page_env(prs); order.append("env")
@@ -618,6 +667,7 @@ if __name__ == "__main__":
     page_camera(prs); order.append("camera")
     page_camera_run(prs); order.append("p7")
     page_summary(prs); order.append("summary")
+    page_ai_try(prs); order.append("ai_try")
     OUT.mkdir(parents=True, exist_ok=True)
     prs.save(OUT / "slides_take.pptx")
     slots = {order[i]: [dict(zip(("name", "x", "y", "w", "h"), sl)) for sl in sls] for i, sls in SLOTS}

@@ -14,3 +14,5 @@ legacy/dora/out/
 
 # 各人の記憶（agent-memory）は追跡しない
 .claude/agent-memory/
+.smolvla/
+report/report.html

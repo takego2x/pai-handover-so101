@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import so101 as s  # noqa: E402
 import softbox as sb  # noqa: E402
 import vision as vi  # noqa: E402
+import carry_policy as cp  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent / "spikes"))
 from vlm_softboxes import surface  # noqa: E402   見た目の絵（Gemini に見せた写真と同じ質感）
 
@@ -41,6 +42,7 @@ ap.add_argument("--per", type=int, default=2, help="1 台目 1 台あたりの�
 ap.add_argument("--total", type=int, help="箱の総数（省略時は first × per）。台数を変えて同じ箱を比べるとき")
 ap.add_argument("--seed", type=int, default=1)
 ap.add_argument("--camera", action="store_true")
+ap.add_argument("--policy", action="store_true", help="運び方（握る力・速さ）を、学習した方策で決める（handover/data/carry_policy.json）")
 ap.add_argument("--record")
 ap.add_argument("--cam", default="over")
 ap.add_argument("--max-steps", type=int, default=40000)
@@ -48,6 +50,7 @@ args = ap.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 
 ROBOT_MU = 0.1
+POLICY = json.loads(cp.W_PATH.read_text()) if args.policy else None
 SQ_PER_TAU = 14.5
 TAU0, TAU_STEP, TAU_MEAS = 0.2, 0.025, 0.4      # 試し始める力、強める幅、強度を測る力（約 5.6 N。どの箱の強度 7.5 N より小さい）
 # 見た目の手がかりがないときは、強度が分からないので小さく刻む（τ 0.2 から 0.025 ずつ）。
@@ -533,12 +536,16 @@ def first(i):
         if strength is None:
             strength = sb.strength_of(k_from_angle(float(np.mean(qs[-30:])), m_hat))
         cap = SAFE * strength / SQ_PER_TAU
-        hold = min(found * MARGIN, max(cap, found))
+        if POLICY:      # 学習した方策：予測の成功率が 95% 以上で、いちばん速い運び方（届かなければ None ＝ 運ばない）
+            ch = cp.choose(POLICY, found, m_hat, strength)
+            hold = ch[0] if ch else found
+        else:
+            hold = min(found * MARGIN, max(cap, found))
         b.update(found=found, m_hat=m_hat, strength_est=strength, tries=tries)
         mark(f"1-{i}", name, f"力加減 {found:.2f}（{tries} 回）、重さ {m_hat * 1000:.0f} g（本当 {b['mass'] * 1000:.0f}）、"
                               f"強度 {strength:.1f} N（本当 {b['strength']:.1f}）、摩擦 {b['mu']}")
         arm.set_grip_tau(hold)
-        if hold / found < MIN_MARGIN:
+        if (ch is None) if POLICY else (hold / found < MIN_MARGIN):
             # 重さに対して弱すぎる：潰さない力では、運ぶ余裕が足りない（余裕 1.27 倍では、ゆっくり運んでも台座の手前で落とした）。
             # 運ばずに元の場所へ置き直し、人の確認に回す。強度を測らずに運べば、潰すか落とすかしていた箱
             mark(f"1-{i}", name, f"重さに対して弱すぎる（余裕 {hold / found:.2f} 倍）→ 運ばずに置き直し、人の確認へ")
@@ -562,6 +569,9 @@ def first(i):
         yield from take([i], f"1-{i}")
         slow = max(1.0, (SLOW_REF / (hold / found)) ** 2)    # 強度の上限で余裕を 2 倍まで足せない箱は、足りない分だけゆっくり（その 2 と同じ）
         n_carry = int(150 * (1 + m_hat / 0.15) * slow)
+        if POLICY:
+            n_carry, slow = int(150 * ch[1]), 1.0
+            mark(f"1-{i}", name, f"方策：握る力 {hold:.2f}（力加減の {hold / found:.1f} 倍）、運ぶ {n_carry} step（成功の予測 {ch[2]:.0%}）")
         if slow > 1.0:
             mark(f"1-{i}", name, f"余裕が {hold / found:.2f} 倍しかない → {slow:.1f} 倍の時間をかけて台座へ")
         az_p, r_p = tip_for(arm, (R * math.cos(math.radians(a)), R * math.sin(math.radians(a))))
@@ -599,7 +609,8 @@ def second():
         st["busy"] = True
         b, (found, m_hat, strength) = st["box"], st["info"]
         cap = SAFE * strength / SQ_PER_TAU
-        tau_B = min(found * MARGIN, max(cap, found))
+        ch_B = cp.choose(POLICY, found, m_hat, strength) if POLICY else None
+        tau_B = ch_B[0] if ch_B else min(found * MARGIN, max(cap, found))
         mark("2", b["name"], f"台座 {j} から、情報で 1 回で持つ（τ {tau_B:.2f}）")
         path = sorted(set(crossed(STATIONS[j], BIG_AZ)) | {j})     # 持つ台座と、運ぶ途中に上を通る台座
         yield from take(path, "2")
@@ -685,6 +696,8 @@ def second():
         margin_eff = tau_B / found
         slow = max(1.0, (SLOW_REF / margin_eff) ** 2)
         n_carry = int(150 * (1 + m_hat / 0.15) * slow)
+        if ch_B:
+            n_carry, slow = int(150 * ch_B[1]), 1.0
         if slow > 1.0:
             mark("2", b["name"], f"余裕が {margin_eff:.2f} 倍しかない → {slow:.1f} 倍の時間をかけて運ぶ")
         drop = {"z": None}
