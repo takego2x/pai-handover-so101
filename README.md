@@ -2,7 +2,7 @@
 
 松尾研 Physical AI 応用編1 最終課題（物理シミュレータ Genesis の中で動かした作品）。
 
-- 動画（YouTube）：（URL）
+- 動画（YouTube）：https://youtu.be/zjjU4SU3UOU
 - 説明資料：`report/説明資料_PAI最終課題.md`（PDF は `scripts/make_pdf.sh` で作る）
 
 ## 概要
